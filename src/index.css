@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #F7F8F5;
+    color: #202B29;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* Custom modern scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F7F8F5;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D0D9D4;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #B0BCB6;
+}
+
+/* Leaflet light theme map enhancements */
+.leaflet-container {
+  background-color: #F7F8F5 !important;
+  font-family: inherit !important;
+}
+
+.leaflet-tile {
+  filter: saturate(0.95) contrast(1.02);
+}
+
+.leaflet-popup-content-wrapper {
+  background: #FFFFFF !important;
+  color: #202B29 !important;
+  border: 1px solid #E1E7E2 !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 4px 16px rgba(23, 61, 53, 0.1) !important;
+}
+
+.leaflet-popup-tip {
+  background: #FFFFFF !important;
+  border: 1px solid #E1E7E2 !important;
+}
+
+/* Clean solid panel & card utility classes */
+.glass-panel, .glass-card {
+  background-color: #FFFFFF;
+  border: 1px solid #E1E7E2;
+  box-shadow: 0 1px 3px 0 rgba(23, 61, 53, 0.05);
+}
+
+/* Marker customization overrides for light theme map */
+.custom-leaflet-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
