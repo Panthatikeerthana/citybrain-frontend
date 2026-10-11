@@ -1,7 +1,7 @@
 import React from 'react';
 import { Activity, Database, Sparkles, Layers } from 'lucide-react';
 
-export type DataSourceVariant = 'live' | 'demo' | 'simulated' | 'rule-based' | 'hybrid';
+export type DataSourceVariant = 'live' | 'demo' | 'simulated' | 'rule-based' | 'hybrid' | 'stored';
 
 interface DataSourceBadgeProps {
   source: DataSourceVariant;
@@ -34,26 +34,26 @@ export const DataSourceBadge: React.FC<DataSourceBadgeProps> = ({ source, endpoi
 
   if (source === 'rule-based') {
     return (
-      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#F4FAFA] border border-[#84BCC0] text-[#347277] text-xs font-mono font-semibold ${className}`} title="Rule-based heuristic model (Demo)">
+      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#F4FAFA] border border-[#84BCC0] text-[#347277] text-xs font-mono font-semibold ${className}`} title="Rule-based heuristic simulation model">
         <Sparkles className="w-3 h-3 text-[#438C91]" />
-        <span>RULE-BASED DEMO MODEL</span>
+        <span>RULE-BASED SIMULATION</span>
       </div>
     );
   }
 
   if (source === 'simulated') {
     return (
-      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#F7F8F5] border border-[#E1E7E2] text-[#697773] text-xs font-mono font-semibold ${className}`} title="Simulated sensor indicators for visualization">
+      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#F7F8F5] border border-[#E1E7E2] text-[#697773] text-xs font-mono font-semibold ${className}`} title="Scenario simulation indicators">
         <Sparkles className="w-3 h-3 text-[#697773]" />
-        <span>SIMULATED TELEMETRY</span>
+        <span>SIMULATED SCENARIO</span>
       </div>
     );
   }
 
   return (
-    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#F7F8F5] border border-[#E1E7E2] text-[#202B29] text-xs font-mono font-semibold ${className}`} title="Verified local demonstration dataset">
+    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#F7F8F5] border border-[#E1E7E2] text-[#202B29] text-xs font-mono font-semibold ${className}`} title="Verified database record">
       <Database className="w-3 h-3 text-[#188568]" />
-      <span>DEMO DATASET</span>
+      <span>DATABASE RECORD</span>
     </div>
   );
 };

@@ -1,6 +1,25 @@
-import { TrafficRecord } from '../types';
-import { DEMO_TRAFFIC_DATA } from '../data/demoData';
-import { API_BASE_URL, normalizeTrafficRecord } from './api';
+import { TrafficRecord, LiveTrafficData } from '../types';
+import { apiFetch, normalizeTrafficRecord } from './api';
+
+/**
+ * Phase 4: Fetches real-time LIVE Traffic telemetry from TomTom via Spring Boot /api/live/traffic.
+ */
+export const fetchLiveTraffic = async (refresh: boolean = false): Promise<LiveTrafficData> => {
+  const endpoint = `/live/traffic${refresh ? '?refresh=true' : ''}`;
+  const response = await apiFetch(endpoint);
+
+  if (!response.ok) {
+    let err = `Live traffic request failed with status ${response.status}`;
+    try {
+      const errJson = await response.json();
+      err = errJson.message || err;
+    } catch {
+    }
+    throw new Error(err);
+  }
+
+  return response.json();
+};
 
 export interface TrafficFetchResult {
   data: TrafficRecord[];
@@ -13,11 +32,8 @@ export const fetchTrafficData = async (): Promise<TrafficFetchResult> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-    const response = await fetch(`${API_BASE_URL}/traffic`, {
+    const response = await apiFetch('/traffic', {
       signal: controller.signal,
-      headers: {
-        'Accept': 'application/json',
-      },
     });
     clearTimeout(timeoutId);
 
@@ -36,25 +52,18 @@ export const fetchTrafficData = async (): Promise<TrafficFetchResult> => {
       records = [normalizeTrafficRecord(json)];
     }
 
-    if (records.length === 0) {
-      return {
-        data: DEMO_TRAFFIC_DATA,
-        isLive: false,
-        message: 'Backend returned empty array. Showing verified fallback demo records.',
-      };
-    }
-
     return {
       data: records,
-      isLive: true,
-      message: 'Connected to live Spring Boot /api/traffic endpoint.',
+      isLive: false,
+      message: records.length > 0
+        ? 'Connected to stored Spring Boot /api/traffic database records.'
+        : 'No traffic records found in database.',
     };
   } catch (error: any) {
-    // Graceful fallback to verified demo data
     return {
-      data: DEMO_TRAFFIC_DATA,
+      data: [],
       isLive: false,
-      message: `Live backend unavailable (${error.message || 'offline'}). Serving verified Hyderabad demo records.`,
+      message: `Database traffic records unavailable (${error.message || 'offline'}).`,
     };
   }
 };

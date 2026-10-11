@@ -106,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       to: '/simulator',
       label: 'What-If Simulator',
       icon: Sliders,
-      badge: { count: 'DEMO', color: 'bg-[#1F4D43] text-[#A8C5BD] border border-[#2A6458]' },
+      badge: undefined,
     },
     {
       to: '/assistant',

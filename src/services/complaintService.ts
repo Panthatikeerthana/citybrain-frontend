@@ -1,39 +1,116 @@
 import { CitizenComplaint } from '../types';
-import { DEMO_COMPLAINTS } from '../data/demoData';
+import { apiFetch } from './api';
 
-const STORAGE_KEY = 'citybrain_citizen_complaints';
-
-export const getComplaints = (): CitizenComplaint[] => {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (!stored) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(DEMO_COMPLAINTS));
-    return DEMO_COMPLAINTS;
+export const getComplaints = async (): Promise<CitizenComplaint[]> => {
+  const response = await apiFetch('/complaints');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch complaints: ${response.statusText}`);
   }
-  try {
-    return JSON.parse(stored);
-  } catch (err) {
-    return DEMO_COMPLAINTS;
-  }
+  const data = await response.json();
+  return data.map((item: any) => ({
+    ...item,
+    title: item.title || `${item.category}: ${item.location}`,
+    citizenName: item.citizenName || item.citizen_name || 'Anonymous Citizen',
+    severity: item.priority || item.severity || 'Medium',
+    priority: item.priority || 'Medium',
+    status: item.status || 'Submitted',
+    createdAt: item.createdAt || item.created_at || new Date().toISOString(),
+    isLive: true,
+  }));
 };
 
-export const submitComplaint = (complaint: Omit<CitizenComplaint, 'id' | 'createdAt' | 'status' | 'isLocalDemo'>): CitizenComplaint => {
-  const current = getComplaints();
-  const newComplaint: CitizenComplaint = {
-    ...complaint,
-    id: `CMP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-    status: 'Submitted',
-    createdAt: 'Just now',
-    isLocalDemo: true,
+export const getComplaintById = async (id: string | number): Promise<CitizenComplaint> => {
+  const response = await apiFetch(`/complaints/${id}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch complaint #${id}: ${response.statusText}`);
+  }
+  const item = await response.json();
+  return {
+    ...item,
+    title: item.title || `${item.category}: ${item.location}`,
+    citizenName: item.citizenName || item.citizen_name || 'Anonymous Citizen',
+    severity: item.priority || item.severity || 'Medium',
+    priority: item.priority || 'Medium',
+    status: item.status || 'Submitted',
+    createdAt: item.createdAt || item.created_at || new Date().toISOString(),
+    isLive: true,
+  };
+};
+
+export const submitComplaint = async (
+  complaint: {
+    citizenName: string;
+    category: string;
+    description: string;
+    location: string;
+    priority?: string;
+    status?: string;
+  }
+): Promise<CitizenComplaint> => {
+  const payload = {
+    citizenName: complaint.citizenName,
+    category: complaint.category,
+    description: complaint.description,
+    location: complaint.location,
+    priority: complaint.priority || 'Medium',
+    status: complaint.status || 'Submitted',
   };
 
-  const updated = [newComplaint, ...current];
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  return newComplaint;
+  const response = await apiFetch('/complaints', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message || `Failed to submit complaint: ${response.status}`);
+  }
+
+  const created = await response.json();
+  return {
+    ...created,
+    title: `${created.category}: ${created.location}`,
+    severity: created.priority || 'Medium',
+    isLive: true,
+  };
 };
 
-export const updateComplaintStatus = (id: string, status: CitizenComplaint['status']): CitizenComplaint[] => {
-  const current = getComplaints();
-  const updated = current.map(item => item.id === id ? { ...item, status } : item);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  return updated;
+export const updateComplaint = async (
+  id: string | number,
+  updatedData: Partial<{
+    citizenName: string;
+    category: string;
+    description: string;
+    location: string;
+    priority: string;
+    status: string;
+  }>
+): Promise<CitizenComplaint> => {
+  const response = await apiFetch(`/complaints/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(updatedData),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message || `Failed to update complaint #${id}: ${response.status}`);
+  }
+
+  const updated = await response.json();
+  return {
+    ...updated,
+    title: `${updated.category}: ${updated.location}`,
+    severity: updated.priority || 'Medium',
+    isLive: true,
+  };
+};
+
+export const deleteComplaint = async (id: string | number): Promise<void> => {
+  const response = await apiFetch(`/complaints/${id}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok && response.status !== 204) {
+    throw new Error(`Failed to delete complaint #${id}: ${response.status}`);
+  }
 };

@@ -1,117 +1,199 @@
-# City Brain — AI-Powered Intelligent Urban Management & Prediction System
+# City Brain — AI-Powered Intelligent Urban Management and Prediction System
 
 > *"Sense the city. Predict the problem. Plan the response."*
 
-A centralized smart-city command center built for **Greater Hyderabad Metropolitan Area**, uniting traffic surveillance, meteorological telemetry, water pipeline grids, solid waste management, continuous ambient air quality, emergency dispatch, citizen grievances, predictive risk analytics, and what-if simulation into an integrated, operations-grade interface.
+**City Brain** is an intelligent, multi-domain municipal command center and predictive intelligence platform designed for urban authorities, command center operators, and citizens in the **Greater Hyderabad Metropolitan Area**. It unifies real-time external telemetry (Open-Meteo live weather, Open-Meteo ambient air quality, and TomTom traffic flow), persistent relational data (MySQL), Google Gemini generative AI reasoning, and interactive spatial analytics into a single operations-grade management platform.
 
 ---
 
 ## 🌟 Technology Stack
 
-- **Framework**: [React 18](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
-- **Bundler & Tooling**: [Vite](https://vitejs.dev/) with development proxy to Spring Boot (`/api` -> `http://localhost:8080`)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/) with custom dark command center theme, glassmorphism, and responsive layout
-- **Routing**: [React Router 6](https://reactrouter.com/)
-- **Mapping**: [Leaflet](https://leafletjs.com/) + OpenStreetMap / CartoDB Voyager tiles with custom SVG marker pins & popup inspectors
-- **Charts & Data Visualizations**: [Recharts](https://recharts.org/) (Bar, Area, Composed, Radar)
-- **Icons**: [Lucide React](https://lucide.dev/)
+### Frontend
+- **Framework**: React 18 + TypeScript
+- **Styling**: Tailwind CSS (Warm-white `#F7F8F5` and Forest-green `#173D35` aesthetic)
+- **Routing**: React Router 6 (SPA with `vercel.json` rewrites)
+- **Data Visualizations**: Recharts (diurnal trends, junction flow rankings)
+- **Spatial Mapping**: Leaflet + OpenStreetMap & CartoDB tiles
+- **Icons**: Lucide React
+- **Hosting**: Vercel
+
+### Backend
+- **Framework**: Java 17 + Spring Boot
+- **Persistence**: Spring Data JPA + Hibernate
+- **Security**: Spring Security + Stateless JWT Authentication (HMAC-SHA512)
+- **HTTP Client**: Native Java `HttpClient` with connection timeouts
+- **Build Tool**: Apache Maven (wrapper included)
+- **Hosting**: Render (Docker containerized) / Linux PaaS
+
+### Database
+- **Engine**: MySQL 8.0+ / Cloud MySQL (TiDB, Aiven, Railway, AWS RDS)
+- **Schema**: 9 relational tables with foreign keys and safe schema updates
+
+### External Feeds & AI
+- **Generative AI**: Google Gemini API (`gemini-1.5-flash`) via backend proxy
+- **Live Weather**: Open-Meteo Weather Forecast API
+- **Live Air Quality**: Open-Meteo Air Quality API (US AQI & particulate matter)
+- **Live Traffic**: TomTom Traffic Flow API
 
 ---
 
-## 🚀 Quick Start Instructions
+## 🏛️ Architecture Overview
 
-### 1. Install Dependencies
+```
+                          ┌──────────────────────────┐
+                          │   React 18 Frontend      │
+                          │      (Vercel SPA)        │
+                          └─────────────┬────────────┘
+                                        │ HTTPS + JWT Bearer
+                                        ▼
+                          ┌──────────────────────────┐
+                          │   Spring Boot Backend    │
+                          │   (Render Container)     │
+                          └──────┬──────────┬────────┘
+                                 │          │
+         ┌───────────────────────┴──┐     ┌─┴────────────────────────┐
+         │ Relational Persistence   │     │ External Live Feeds & AI │
+         ▼                          │     ▼                          ▼
+┌──────────────────┐                │  ┌────────────┐        ┌─────────────┐
+│  Cloud MySQL     │                │  │ Open-Meteo │        │   Google    │
+│  - app_users     │                │  │ (Weather & │        │   Gemini    │
+│  - traffic       │                │  │  Air Qual) │        │  AI Engine  │
+│  - weather       │                │  └────────────┘        └─────────────┘
+│  - complaints    │                │  ┌────────────┐
+│  - emergencies   │                │  │   TomTom   │
+│  - water_issues  │                │  │  Traffic   │
+│  - waste_records │                │  │  Flow API  │
+│  - pollution     │                │  └────────────┘
+│  - risks         │                │
+└──────────────────┘                └────────────────────────────────
+```
+
+---
+
+## ⚡ Core Modules & Features
+
+1. **Authentication & Access Control**:
+   - BCrypt password hashing.
+   - Stateless JWT authentication with Bearer tokens.
+   - Protected routes, public-only routes, session restoration via `GET /api/auth/me`.
+2. **Command Dashboard**:
+   - Executive urban KPIs (active emergencies, complaints queue, average congestion).
+   - Real-time Live Telemetry Grid (Open-Meteo live weather, live AQI, TomTom traffic status).
+3. **Citizen Grievance Redressal**:
+   - Full MySQL CRUD for citizen grievances (potholes, drainage, streetlights).
+   - Category filtering, priority scoring, and status transitions (`OPEN`, `IN_PROGRESS`, `RESOLVED`).
+4. **Emergency Management**:
+   - Dispatch coordination for fire, medical, police, and multi-vehicle collisions.
+5. **Water Network Intelligence**:
+   - Municipal pipeline monitoring, pressure analysis (PSI), and leak tracking.
+6. **Solid Waste Management**:
+   - Bin accumulation tracking, commercial tonnage records, and route allocation.
+7. **Air Quality Monitoring**:
+   - Dual-source monitoring: Live Open-Meteo ambient AQI + MySQL monitoring station records.
+8. **Predictive Urban Risk Engine**:
+   - Rule-based hazard matrices forecasting monsoon inundation, grid failures, and bottlenecks.
+9. **AI City Assistant (Gemini)**:
+   - Natural language assistant reasoning over real-time database context.
+   - Rate limiting (15 requests/min) and prompt isolation.
+   - Clear demarcation between **LIVE EXTERNAL FEEDS** and **STORED HISTORICAL RECORDS**.
+10. **Interactive Spatial Map**:
+    - Leaflet GIS canvas with interactive markers for Hyderabad junctions, stations, and incidents.
+
+---
+
+## 🔐 Environment Variables
+
+> [!IMPORTANT]
+> **Zero Secrets Policy**: Never commit real API keys, database credentials, or JWT secrets to Git. Configure these variables in your hosting dashboard or local `.env` files.
+
+### Backend Environment Variables (`citybrain-backend`)
+
+| Variable Name | Required | Default / Example | Purpose |
+| :--- | :--- | :--- | :--- |
+| `PORT` | Optional | `8080` | Port on which Spring Boot binds (automatically set by Render) |
+| `SPRING_PROFILES_ACTIVE` | Optional | `prod` | Activates production configuration |
+| `DB_URL` | **Yes** | `jdbc:mysql://<host>:3306/citybrain` | JDBC connection string |
+| `DB_USERNAME` | **Yes** | `admin` | MySQL database username |
+| `DB_PASSWORD` | **Yes** | `***` | MySQL database password |
+| `JWT_SECRET` | **Yes** | `<64+ char secret>` | Cryptographic secret for signing JWT tokens |
+| `FRONTEND_URL` | **Yes** | `https://your-frontend.vercel.app` | Allowed CORS origin for production frontend |
+| `GEMINI_API_KEY` | Optional | `***` | Google Gemini API key (enables generative AI assistant) |
+| `GEMINI_MODEL` | Optional | `gemini-1.5-flash` | Gemini model identifier |
+| `TRAFFIC_API_KEY` | Optional | `***` | TomTom Traffic Flow API key (enables live corridor speeds) |
+
+### Frontend Environment Variables (`citybrain-frontend`)
+
+| Variable Name | Required | Default / Example | Purpose |
+| :--- | :--- | :--- | :--- |
+| `VITE_API_BASE_URL` | **Yes (Prod)** | `/api` | Base URL of deployed backend (e.g. `https://citybrain-backend.onrender.com/api`) |
+
+---
+
+## 🚀 Local Development Setup
+
+### Prerequisites
+- JDK 17+ installed
+- Node.js 18+ and npm installed
+- MySQL 8.0+ running locally on port 3306
+
+### 1. Database Setup
+```bash
+mysql -u root -p < production_schema.sql
+```
+
+### 2. Backend Setup
+```bash
+cd citybrain-backend
+./mvnw clean spring-boot:run
+```
+Backend will start on `http://localhost:8080`. Public health check available at `http://localhost:8080/api/health`.
+
+### 3. Frontend Setup
 ```bash
 cd frontend
 npm install
-```
-
-### 2. Start the Development Server
-```bash
 npm run dev
 ```
-
-The application will be accessible at:
-👉 **[http://localhost:5173](http://localhost:5173)**
-
-### 3. Production Build
-```bash
-npm run build
-```
+Open your browser at `http://localhost:5173`.
 
 ---
 
-## 🔌 Backend Connectivity & Data Integrity
+## 🌐 Production Deployment Guide
 
-The frontend includes a built-in reverse proxy in `vite.config.ts` targeting `http://localhost:8080`:
+### A. Deploy Database (Cloud MySQL)
+1. Provision a managed MySQL database (e.g., [Aiven](https://aiven.io/), [TiDB Serverless](https://tidbcloud.com/), or [Railway](https://railway.app/)).
+2. Import `production_schema.sql` into the database.
+3. Note the connection URL, username, and password.
 
-| Endpoint | Target Method | Description | Fallback Behavior |
-| :--- | :--- | :--- | :--- |
-| `/api/traffic` | `GET` | Live junction congestion & vehicle density | Auto-switches to verified Hyderabad demo dataset if backend is offline |
-| `/api/weather` | `GET` | Ambient temperature & precipitation telemetry | Displays regional meteorological simulation model |
-| `/api/*` | Other | Water, waste, incidents, grievances | Local cache & demo records with transparent `DEMO` / `SIMULATED` indicators |
+### B. Deploy Backend to Render
+1. Push `citybrain-backend` to GitHub.
+2. In the Render Dashboard, create a **New Web Service** connected to your repository.
+3. Select **Docker** environment (or Maven runtime). Render will detect the included `Dockerfile` and `render.yaml`.
+4. Add the required environment variables:
+   - `SPRING_PROFILES_ACTIVE=prod`
+   - `DB_URL=jdbc:mysql://<host>:<port>/<dbname>?useSSL=true`
+   - `DB_USERNAME=<user>`
+   - `DB_PASSWORD=<password>`
+   - `JWT_SECRET=<random-64-character-string>`
+   - `FRONTEND_URL=https://<your-app>.vercel.app`
+   - `GEMINI_API_KEY=<your-gemini-key>`
+   - `TRAFFIC_API_KEY=<your-tomtom-key>`
+5. Click **Deploy**. Verify the deployment via `https://<your-backend>.onrender.com/api/health`.
 
-### Data Transparency Principles
-- **No Fabricated Live Data**: Any module running on demo or heuristic models is explicitly labeled with `DEMO DATASET`, `RULE-BASED DEMO MODEL`, or `SIMULATED TELEMETRY` badges.
-- **Resilient Fallback**: If the Spring Boot backend (`citybrain-backend`) is stopped or unreachable, the application gracefully maintains full interactive functionality with verified Hyderabad baseline records (Uppal, Ghatkesar, Jodimetla, LB Nagar, Kukatpally, Hitec City, etc.).
-
----
-
-## 📂 Project Architecture
-
-```
-frontend/
-├── index.html                     # HTML5 Shell with Fonts and Leaflet assets
-├── package.json                   # Dependencies and scripts
-├── tailwind.config.js             # Command center color palette configuration
-├── vite.config.ts                 # Vite setup with Spring Boot API proxy (/api -> 8080)
-├── src/
-│   ├── types/                     # Strong TypeScript definitions
-│   │   └── index.ts               # Interfaces for Traffic, Weather, Water, Incidents, Risks...
-│   ├── data/                      # Baseline Hyderabad demonstration datasets
-│   │   └── demoData.ts            # Authentic locations, coordinates, and incidents
-│   ├── services/                  # Centralized API layer with normalizers
-│   │   ├── api.ts                 # Health-check, normalization (camelCase / snake_case)
-│   │   ├── trafficService.ts      # Live probe to GET /api/traffic
-│   │   ├── weatherService.ts      # Live probe to GET /api/weather
-│   │   ├── emergencyService.ts    # Incident dispatch & cache
-│   │   ├── complaintService.ts    # LocalStorage citizen grievance persistence
-│   │   └── riskService.ts         # Multi-factor correlation risk engine
-│   ├── context/
-│   │   └── CityBrainContext.tsx   # Global reactive state, polling, notifications & alerts
-│   ├── layout/
-│   │   └── AppLayout.tsx          # Responsive Sidebar, Header, Modals & Footer shell
-│   ├── components/
-│   │   ├── common/                # StatCard, Badges, SearchModal, NotificationDrawer...
-│   │   └── map/                   # Interactive Leaflet CityMap with multi-layer filtering
-│   └── pages/
-│       ├── DashboardPage.tsx      # Central Overview Command Center
-│       ├── MapPage.tsx            # Full-screen GIS Spatial Map & Node Directory
-│       ├── TrafficPage.tsx        # Traffic management & congestion bar analytics
-│       ├── WeatherPage.tsx        # Meteorology & hourly rainfall projections
-│       ├── WaterPage.tsx          # Water supply & pipeline pressure telemetry
-│       ├── WastePage.tsx          # Municipal solid waste & bin fill logistics
-│       ├── PollutionPage.tsx      # CAAQMS air quality index & particulate breakdown
-│       ├── EmergencyPage.tsx      # Multi-agency crisis dispatch & detail inspector
-│       ├── ComplaintsPage.tsx     # Citizen grievance lodgment portal & tracker
-│       ├── RiskPredictionPage.tsx # Predictive risk matrix with explainability notes
-│       ├── SimulatorPage.tsx      # Interactive What-if urban resilience simulator
-│       └── AssistantPage.tsx      # City Brain AI assistant with operational query engine
-```
+### C. Deploy Frontend to Vercel
+1. Push `citybrain-frontend` to GitHub.
+2. In the Vercel Dashboard, import the repository.
+3. Framework Preset: **Vite**.
+4. Root Directory: `./` (or `frontend`).
+5. Build Command: `npm run build`, Output Directory: `dist`.
+6. Add Environment Variable:
+   - `VITE_API_BASE_URL=https://<your-backend>.onrender.com/api`
+7. Click **Deploy**.
+8. Copy the deployed Vercel domain and update `FRONTEND_URL` on your Render backend service.
 
 ---
 
-## 🛰️ Implemented Modules
-
-1. **Command Overview Dashboard**: Real-time KPI summaries, traffic bar charts, diurnal atmospheric curve, live emergency dispatches, and predictive risk flags.
-2. **Live City Map (GIS)**: Leaflet map centered over Hyderabad with categorized markers (traffic, emergencies, water leaks, waste bins, air quality, citizen complaints), custom popups, and layer toggles.
-3. **Traffic Management**: Connects to `GET /api/traffic`, handles snake_case/camelCase timestamp normalization, includes table sorting, search, severity badges, and fallback demo dataset.
-4. **Weather & Climate**: Temperature, feels like, humidity, rainfall accumulation, UV index, and hourly forecast charts.
-5. **Water Management**: Tracks pipeline bursts, pressure collapses (PSI), and affected household counts.
-6. **Waste Management**: Bin fill gauges, overflowing warnings, and compactor truck logistics.
-7. **Air Quality (AQI)**: Continuous particulate matter (PM2.5, PM10) monitoring with clear simulation disclaimer.
-8. **Emergency Dispatch Center**: Police, Fire, DRF, and 108 ambulance response coordination with status updates.
-9. **Citizen Grievances**: Interactive form submission with client validation and browser localStorage persistence.
-10. **Predictive Risk Engine**: Multi-sensor precursor detection explaining *why* a risk was flagged with recommended mitigation actions.
-11. **What-If Urban Simulator**: Interactive sliders for traffic volume, rainfall intensity, waste factor, and power grid stress with real-time radar risk recalculation.
-12. **AI Operations Assistant**: Natural language query engine over current city state with quick suggested inquiries.
+## 🛡️ Security & Privacy Notice
+- The application automatically scrubs API keys and database credentials from outgoing HTTP error messages.
+- Rate limiting enforces a maximum of 15 generative AI requests per minute per user.
+- If live API keys are not supplied, the platform fails gracefully to structured metadata rather than inventing simulated numbers.

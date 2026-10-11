@@ -1,6 +1,5 @@
-import { WeatherData } from '../types';
-import { DEMO_WEATHER_DATA } from '../data/demoData';
-import { API_BASE_URL } from './api';
+import { WeatherData, LiveWeatherData } from '../types';
+import { apiFetch } from './api';
 
 export interface WeatherFetchResult {
   data: WeatherData;
@@ -8,12 +7,15 @@ export interface WeatherFetchResult {
   message?: string;
 }
 
+/**
+ * Fetches stored historical weather records from MySQL database.
+ */
 export const fetchWeatherData = async (): Promise<WeatherFetchResult> => {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2500);
 
-    const response = await fetch(`${API_BASE_URL}/weather`, {
+    const response = await apiFetch('/weather', {
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
@@ -24,19 +26,44 @@ export const fetchWeatherData = async (): Promise<WeatherFetchResult> => {
 
     const json = await response.json();
     return {
-      data: {
-        ...DEMO_WEATHER_DATA,
-        ...json,
-        isLive: true,
-      },
-      isLive: true,
-      message: 'Connected to live weather telemetry endpoint.',
+      data: json as WeatherData,
+      isLive: false,
+      message: 'Connected to stored Spring Boot /api/weather endpoint.',
     };
   } catch (error) {
     return {
-      data: DEMO_WEATHER_DATA,
+      data: {} as WeatherData,
       isLive: false,
-      message: 'Weather API not active on backend. Displaying regional demo meteorological model.',
+      message: 'No stored weather records found in database.',
     };
   }
+};
+
+/**
+ * Phase 4: Fetches real-time LIVE weather telemetry from Open-Meteo via Spring Boot /api/live/weather.
+ */
+export const fetchLiveWeather = async (
+  lat?: number,
+  lon?: number,
+  refresh: boolean = false
+): Promise<LiveWeatherData> => {
+  const query = new URLSearchParams();
+  if (lat != null) query.set('lat', lat.toString());
+  if (lon != null) query.set('lon', lon.toString());
+  if (refresh) query.set('refresh', 'true');
+
+  const endpoint = `/live/weather${query.toString() ? `?${query.toString()}` : ''}`;
+  const response = await apiFetch(endpoint);
+
+  if (!response.ok) {
+    let err = `Live weather request failed with status ${response.status}`;
+    try {
+      const errJson = await response.json();
+      err = errJson.message || err;
+    } catch {
+    }
+    throw new Error(err);
+  }
+
+  return response.json();
 };

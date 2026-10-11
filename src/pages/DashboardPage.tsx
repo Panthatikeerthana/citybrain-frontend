@@ -11,7 +11,12 @@ import {
   FileText, 
   ArrowRight, 
   Sliders, 
-  Bot
+  Radio,
+  RefreshCw,
+  Gauge,
+  Thermometer,
+  ShieldCheck,
+  Info
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -38,19 +43,23 @@ export const DashboardPage: React.FC = () => {
     complaints, 
     riskPredictions, 
     systemStatus,
+    liveWeather,
+    livePollution,
+    liveTraffic,
+    refreshLiveTelemetry,
     waterIssues,
-    wasteRecords
+    wasteRecords,
+    pollutionRecords
   } = useCityBrain();
-
 
   // Metrics
   const highPriorityEmergencies = emergencies.filter(e => e.severity === 'Critical' || e.severity === 'High');
   const avgCongestion = traffic.length > 0 
     ? Math.round(traffic.reduce((acc, curr) => acc + curr.congestion, 0) / traffic.length) 
-    : 62;
+    : (liveTraffic?.configured && liveTraffic.items && liveTraffic.items.length > 0 ? liveTraffic.items[0].congestionLevel : null);
   const activeComplaintsCount = complaints.filter(c => c.status !== 'Resolved').length;
 
-  // Chart data: Traffic congestion rankings
+  // Chart data: Traffic congestion rankings from verified records
   const trafficChartData = traffic.slice(0, 6).map(t => ({
     name: t.location.split(' ')[0],
     congestion: t.congestion,
@@ -58,15 +67,16 @@ export const DashboardPage: React.FC = () => {
     status: t.status,
   }));
 
-  // Chart data: Environmental hourly simulation trends
-  const envTrendData = [
-    { time: '06:00', aqi: 110, temp: 24, humidity: 82 },
-    { time: '09:00', aqi: 145, temp: 28, humidity: 74 },
-    { time: '12:00', aqi: 168, temp: 33, humidity: 55 },
-    { time: '15:00', aqi: 152, temp: 34, humidity: 52 },
-    { time: '18:00', aqi: 178, temp: 29, humidity: 68 },
-    { time: '21:00', aqi: 160, temp: 27, humidity: 75 },
-  ];
+  // Dynamic Environmental Trend points from verified live telemetry or stored records
+  const envTrendData = pollutionRecords.length > 0 
+    ? pollutionRecords.slice(0, 6).map(p => ({
+        time: (p.location || 'Station').split(' ')[0],
+        aqi: p.aqi || 0,
+        pm25: p.pm25 || 0,
+      }))
+    : livePollution 
+    ? [{ time: 'Live Now', aqi: livePollution.aqi, pm25: livePollution.pm25 }]
+    : [];
 
   return (
     <div className="space-y-6">
@@ -78,8 +88,8 @@ export const DashboardPage: React.FC = () => {
               City Brain Command Center
             </h1>
             <DataSourceBadge 
-              source={systemStatus.trafficSource === 'live' ? 'live' : 'demo'} 
-              endpoint={systemStatus.trafficSource === 'live' ? '/api/traffic' : undefined} 
+              source={liveTraffic?.configured ? 'live' : 'hybrid'} 
+              endpoint="/api/live" 
             />
           </div>
           <p className="text-sm text-[#697773]">
@@ -106,61 +116,230 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Phase 4: Real-Time Urban Telemetry Feeds Grid */}
+      <div className="bg-white p-5 rounded-xl border border-[#E1E7E2] shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#E1E7E2] gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg bg-[#188568]/10 text-[#188568] flex items-center justify-center font-bold">
+              <Radio className="w-5 h-5 text-[#188568]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-[#202B29]">Live Telemetry Stream</h2>
+                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  LIVE EXTERNAL FEEDS
+                </span>
+              </div>
+              <p className="text-xs text-[#697773]">
+                Direct telemetry via Spring Boot backend proxy (`/api/live/*`) • Cached 2–5m
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <span className="text-[11px] text-[#697773] font-mono">
+              Last sync: {liveWeather?.observationTime ? new Date(liveWeather.observationTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Live'}
+            </span>
+            <button
+              onClick={() => refreshLiveTelemetry(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#E1E7E2] hover:bg-[#F7F8F5] text-xs text-[#202B29] transition-all"
+              title="Force Refresh Live Telemetry"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-[#188568]" />
+              <span className="font-semibold">Refresh</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+          {/* Card 1: Live Weather */}
+          <div className="p-4 rounded-xl bg-[#F7F8F5] border border-[#E1E7E2] flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-[#697773] uppercase tracking-wider flex items-center gap-1.5">
+                  <CloudSun className="w-3.5 h-3.5 text-amber-600" />
+                  Live Weather
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">
+                  Open-Meteo • LIVE
+                </span>
+              </div>
+              {liveWeather ? (
+                <>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-black text-[#202B29]">
+                      {liveWeather.temperature}°C
+                    </span>
+                    <span className="text-xs font-semibold text-[#188568]">
+                      {liveWeather.condition}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] text-[#697773] font-sans">
+                    <div className="bg-white p-2 rounded-lg border border-[#E1E7E2]">
+                      <span className="block text-[10px] text-[#86928E]">Humidity</span>
+                      <span className="font-bold text-[#202B29]">{liveWeather.humidity}%</span>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-[#E1E7E2]">
+                      <span className="block text-[10px] text-[#86928E]">Precip</span>
+                      <span className="font-bold text-[#202B29]">{liveWeather.precipitation} mm</span>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-[#E1E7E2]">
+                      <span className="block text-[10px] text-[#86928E]">Wind</span>
+                      <span className="font-bold text-[#202B29]">{liveWeather.windSpeed} km/h</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="py-4 text-xs text-[#697773] flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 animate-spin text-[#188568]" />
+                  <span>Connecting to Open-Meteo live weather stream...</span>
+                </div>
+              )}
+            </div>
+            <div className="text-[10px] text-[#86928E] font-mono mt-3 pt-2 border-t border-[#E1E7E2] flex justify-between">
+              <span>{liveWeather?.location || 'Greater Hyderabad'}</span>
+              <span>Observed: {liveWeather?.observationTime ? new Date(liveWeather.observationTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Live'}</span>
+            </div>
+          </div>
+
+          {/* Card 2: Live Air Quality */}
+          <div className="p-4 rounded-xl bg-[#F7F8F5] border border-[#E1E7E2] flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-[#697773] uppercase tracking-wider flex items-center gap-1.5">
+                  <Wind className="w-3.5 h-3.5 text-teal-600" />
+                  Live Air Quality
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">
+                  Open-Meteo AQI • LIVE
+                </span>
+              </div>
+              {livePollution ? (
+                <>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-black text-[#202B29]">
+                      AQI {livePollution.aqi}
+                    </span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                      livePollution.aqi > 150 ? 'bg-red-100 text-red-800' :
+                      livePollution.aqi > 100 ? 'bg-amber-100 text-amber-800' :
+                      'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {livePollution.category}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] text-[#697773] font-sans">
+                    <div className="bg-white p-2 rounded-lg border border-[#E1E7E2]">
+                      <span className="block text-[10px] text-[#86928E]">PM2.5</span>
+                      <span className="font-bold text-[#202B29]">{livePollution.pm25} µg/m³</span>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-[#E1E7E2]">
+                      <span className="block text-[10px] text-[#86928E]">PM10</span>
+                      <span className="font-bold text-[#202B29]">{livePollution.pm10} µg/m³</span>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-[#E1E7E2]">
+                      <span className="block text-[10px] text-[#86928E]">Dominant</span>
+                      <span className="font-bold text-[#202B29]">{livePollution.dominantPollutant}</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="py-4 text-xs text-[#697773] flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 animate-spin text-[#188568]" />
+                  <span>Connecting to Open-Meteo air quality stream...</span>
+                </div>
+              )}
+            </div>
+            <div className="text-[10px] text-[#86928E] font-mono mt-3 pt-2 border-t border-[#E1E7E2] flex justify-between">
+              <span>{livePollution?.location || 'Greater Hyderabad'}</span>
+              <span>Observed: {livePollution?.observationTime ? new Date(livePollution.observationTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Live'}</span>
+            </div>
+          </div>
+
+          {/* Card 3: Live Traffic Integration */}
+          <div className="p-4 rounded-xl bg-[#F7F8F5] border border-[#E1E7E2] flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-[#697773] uppercase tracking-wider flex items-center gap-1.5">
+                  <Car className="w-3.5 h-3.5 text-blue-600" />
+                  Live Traffic Telemetry
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold">
+                  TomTom Flow API
+                </span>
+              </div>
+
+              {liveTraffic?.configured && liveTraffic.items && liveTraffic.items.length > 0 ? (
+                <div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-black text-[#202B29]">
+                      {liveTraffic.items[0].congestionLevel}% Congestion
+                    </span>
+                    <span className="text-xs font-bold text-amber-600">
+                      {liveTraffic.items[0].status}
+                    </span>
+                  </div>
+                  <div className="mt-3 bg-white p-2.5 rounded-lg border border-[#E1E7E2] text-xs">
+                    <span className="font-semibold text-[#202B29]">{liveTraffic.items[0].location}</span>: {liveTraffic.items[0].currentSpeed} km/h (Free-flow: {liveTraffic.items[0].freeFlowSpeed} km/h)
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg">
+                    <Info className="w-3.5 h-3.5 shrink-0" />
+                    <span>Live traffic unavailable — TomTom API key required</span>
+                  </div>
+                  <p className="text-[11px] text-[#697773] leading-relaxed">
+                    Set <code className="bg-white px-1 py-0.5 rounded border border-[#E1E7E2] text-[#202B29] font-mono text-[10px]">TRAFFIC_API_KEY</code> on server to stream live velocity.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="text-[10px] text-[#86928E] font-mono mt-3 pt-2 border-t border-[#E1E7E2] flex justify-between">
+              <span>Database Records</span>
+              <span>{traffic.length} nodes recorded</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Active City Incidents"
           value={emergencies.length}
-          subValue={`${highPriorityEmergencies.length} High Priority`}
+          subValue={emergencies.length === 0 ? "No active incidents" : `${highPriorityEmergencies.length} High Priority`}
           icon={AlertTriangle}
           accentColor={highPriorityEmergencies.length > 0 ? 'rose' : 'amber'}
-          trend={{
-            value: '+2 new',
-            direction: 'up',
-            label: 'past hour',
-          }}
           onClick={() => navigate('/emergency')}
         />
 
         <StatCard
           title="Traffic Congestion Index"
-          value={`${avgCongestion}%`}
-          subValue={systemStatus.trafficSource === 'live' ? 'Live Telemetry' : 'Demo Sensor Grid'}
+          value={avgCongestion !== null ? `${avgCongestion}%` : 'Unavailable'}
+          subValue={liveTraffic?.configured ? 'Live TomTom Telemetry' : (traffic.length > 0 ? 'Database Average' : 'Key Required')}
           icon={Car}
-          accentColor={avgCongestion > 70 ? 'amber' : 'emerald'}
-          trend={{
-            value: avgCongestion > 65 ? '+5.4%' : '-2.1%',
-            direction: avgCongestion > 65 ? 'up' : 'down',
-            label: 'vs 1hr avg',
-          }}
+          accentColor={avgCongestion !== null && avgCongestion > 70 ? 'amber' : 'emerald'}
           onClick={() => navigate('/traffic')}
         />
 
         <StatCard
           title="Environmental Status"
-          value={`${weather.temperature || 31.4}°C`}
-          subValue={`AQI 142 • ${weather.condition || 'Partly Cloudy'}`}
+          value={liveWeather ? `${liveWeather.temperature}°C` : 'Connecting...'}
+          subValue={livePollution ? `AQI ${livePollution.aqi} • ${liveWeather?.condition || livePollution.category}` : 'Live stream active'}
           icon={CloudSun}
           accentColor="teal"
-          trend={{
-            value: `${weather.rainfall || 14.5}mm`,
-            direction: 'neutral',
-            label: 'Rainfall',
-          }}
           onClick={() => navigate('/weather')}
         />
 
         <StatCard
           title="Citizen Complaints"
           value={activeComplaintsCount}
-          subValue="Local Portal Queue"
+          subValue={complaints.length === 0 ? "No complaints recorded yet" : `${complaints.filter(c => c.status === 'Resolved').length} resolved`}
           icon={FileText}
           accentColor="emerald"
-          trend={{
-            value: `${complaints.filter(c => c.status === 'Resolved').length} resolved`,
-            direction: 'down',
-            label: 'today',
-          }}
           onClick={() => navigate('/complaints')}
         />
       </div>
@@ -173,9 +352,9 @@ export const DashboardPage: React.FC = () => {
             <div>
               <h2 className="text-base font-bold text-[#202B29] flex items-center gap-2">
                 <Car className="w-4 h-4 text-[#188568]" />
-                <span>Major Corridor Congestion Levels</span>
+                <span>Corridor Congestion Levels</span>
               </h2>
-              <p className="text-xs text-[#697773]">Peak flow velocity & bottleneck indicators</p>
+              <p className="text-xs text-[#697773]">Database-persisted corridor records</p>
             </div>
             <button
               onClick={() => navigate('/traffic')}
@@ -187,168 +366,75 @@ export const DashboardPage: React.FC = () => {
           </div>
 
           <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={trafficChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E1E7E2" />
-                <XAxis dataKey="name" stroke="#697773" fontSize={11} />
-                <YAxis stroke="#697773" fontSize={11} domain={[0, 100]} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#E1E7E2', borderRadius: '0.5rem', color: '#202B29', fontSize: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}
-                  formatter={(val: any) => [`${val}%`, 'Congestion Level']}
-                />
-                <Bar dataKey="congestion" fill="#188568" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-[#E1E7E2] flex items-center justify-between text-xs text-[#697773]">
-            <span>Highest Bottleneck: <strong className="text-[#D64545]">Hitec City (88%)</strong></span>
-            <span className="font-mono text-[11px]">Threshold: 75% Alarm</span>
+            {trafficChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={trafficChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E1E7E2" />
+                  <XAxis dataKey="name" stroke="#697773" fontSize={11} />
+                  <YAxis stroke="#697773" fontSize={11} domain={[0, 100]} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#E1E7E2', borderRadius: '0.5rem', color: '#202B29', fontSize: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}
+                    formatter={(val: any) => [`${val}%`, 'Congestion Level']}
+                  />
+                  <Bar dataKey="congestion" fill="#188568" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-[#697773] text-xs border border-dashed border-[#E1E7E2] rounded-lg">
+                <Car className="w-6 h-6 text-[#C2CCC7] mb-1" />
+                <span>No traffic records in database yet.</span>
+                <span className="text-[11px] text-[#86928E]">Add records via Traffic module or stream via TomTom API.</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Chart 2: Environmental Trends (AQI & Temp) */}
+        {/* Chart 2: Environmental Trends */}
         <div className="bg-white p-5 rounded-xl border border-[#E1E7E2] shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-base font-bold text-[#202B29] flex items-center gap-2">
-                <Wind className="w-4 h-4 text-[#438C91]" />
-                <span>Atmospheric Trends & AQI Curve</span>
+                <Wind className="w-4 h-4 text-[#188568]" />
+                <span>Environmental Monitoring</span>
               </h2>
-              <p className="text-xs text-[#697773]">Simulated diurnal pollution & temperature cycle</p>
+              <p className="text-xs text-[#697773]">Air Quality Index (AQI) readings</p>
             </div>
-            <DataSourceBadge source="simulated" />
-          </div>
-
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={envTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E1E7E2" />
-                <XAxis dataKey="time" stroke="#697773" fontSize={11} />
-                <YAxis stroke="#697773" fontSize={11} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#E1E7E2', borderRadius: '0.5rem', color: '#202B29', fontSize: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}
-                />
-                <Area type="monotone" dataKey="aqi" stroke="#C49A24" fill="#C49A24" fillOpacity={0.15} name="AQI (Simulated)" />
-                <Area type="monotone" dataKey="temp" stroke="#188568" fill="#188568" fillOpacity={0.15} name="Temp (°C)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-[#E1E7E2] flex items-center justify-between text-xs text-[#697773]">
-            <span>Peak AQI: <strong className="text-[#D97732]">178 (Moderate/Unhealthy)</strong></span>
-            <span className="font-mono text-[11px]">Auto-refresh 30s</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Two Column Section: Priority Incidents & Predicted City Risks */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left: Active Incidents */}
-        <div className="bg-white p-5 rounded-xl border border-[#E1E7E2] shadow-sm flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-bold text-[#202B29] flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-[#D64545]" />
-              <span>Live Emergency Incidents</span>
-            </h2>
             <button
-              onClick={() => navigate('/emergency')}
-              className="text-xs text-[#188568] hover:text-[#11654F] font-semibold"
+              onClick={() => navigate('/pollution')}
+              className="text-xs text-[#188568] hover:text-[#11654F] font-semibold flex items-center gap-1"
             >
-              Dispatch Center →
+              <span>View All</span>
+              <ArrowRight className="w-3 h-3" />
             </button>
           </div>
 
-          <div className="space-y-3 flex-1">
-            {emergencies.slice(0, 3).map((incident) => (
-              <div
-                key={incident.id}
-                onClick={() => navigate('/emergency')}
-                className="p-3.5 rounded-lg bg-[#F7F8F5] border border-[#E1E7E2] hover:border-[#188568]/40 transition-colors cursor-pointer group"
-              >
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <span className="font-semibold text-sm text-[#202B29] group-hover:text-[#188568] transition-colors">
-                    {incident.title}
-                  </span>
-                  <SeverityBadge severity={incident.severity} size="sm" />
-                </div>
-                <p className="text-xs text-[#697773] line-clamp-1 mb-2">
-                  {incident.description}
-                </p>
-                <div className="flex items-center justify-between text-[11px] text-[#697773] font-mono">
-                  <span>📍 {incident.location}</span>
-                  <span className="text-[#188568] font-semibold">{incident.status}</span>
-                </div>
+          <div className="h-64 w-full">
+            {envTrendData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={envTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="aqiGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#188568" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#188568" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E1E7E2" />
+                  <XAxis dataKey="time" stroke="#697773" fontSize={11} />
+                  <YAxis stroke="#697773" fontSize={11} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#E1E7E2', borderRadius: '0.5rem', color: '#202B29', fontSize: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}
+                  />
+                  <Area type="monotone" dataKey="aqi" stroke="#188568" fillOpacity={1} fill="url(#aqiGrad)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-[#697773] text-xs border border-dashed border-[#E1E7E2] rounded-lg">
+                <Wind className="w-6 h-6 text-[#C2CCC7] mb-1" />
+                <span>No pollution records logged in database yet.</span>
+                <span className="text-[11px] text-[#86928E]">Live telemetry is active above via Open-Meteo.</span>
               </div>
-            ))}
+            )}
           </div>
-        </div>
-
-        {/* Right: AI Predictive Risk Flagging */}
-        <div className="bg-white p-5 rounded-xl border border-[#E1E7E2] shadow-sm flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-[#188568]" />
-              <h2 className="text-base font-bold text-[#202B29]">
-                Predictive Risk Matrix
-              </h2>
-            </div>
-            <DataSourceBadge source="rule-based" />
-          </div>
-
-          <div className="space-y-3 flex-1">
-            {riskPredictions.slice(0, 3).map((risk) => (
-              <div
-                key={risk.id}
-                onClick={() => navigate('/risk-prediction')}
-                className="p-3.5 rounded-lg bg-[#F2FAF7] border border-[#E2F4EF] hover:border-[#188568]/40 transition-colors cursor-pointer group"
-              >
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <span className="font-semibold text-sm text-[#202B29] group-hover:text-[#188568] transition-colors">
-                    {risk.title}
-                  </span>
-                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-white text-[#11654F] border border-[#9CE3D1]">
-                    Risk {risk.riskScore}/100
-                  </span>
-                </div>
-                <p className="text-xs text-[#4E5F5B] mb-2 font-sans">
-                  💡 <strong className="text-[#11654F]">Action:</strong> {risk.recommendedAction}
-                </p>
-                <div className="flex items-center justify-between text-[11px] text-[#697773] font-mono">
-                  <span>Horizon: {risk.timeHorizon}</span>
-                  <SeverityBadge severity={risk.severity} size="sm" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Access Matrix to All Smart City Pillars */}
-      <div className="bg-white p-6 rounded-xl border border-[#E1E7E2] shadow-sm">
-        <h2 className="text-base font-bold text-[#202B29] mb-4 flex items-center gap-2">
-          <Bot className="w-5 h-5 text-[#188568]" />
-          <span>Integrated Urban Operations Hub</span>
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {[
-            { label: 'Traffic Control', path: '/traffic', count: `${traffic.length} Nodes`, icon: Car, color: 'text-[#188568]' },
-            { label: 'Water Utilities', path: '/water', count: `${waterIssues.length} Incidents`, icon: Droplets, color: 'text-[#438C91]' },
-            { label: 'Solid Waste', path: '/waste', count: `${wasteRecords.length} Zones`, icon: Trash2, color: 'text-[#C49A24]' },
-            { label: 'Air Pollution', path: '/pollution', count: '5 CAAQMS', icon: Wind, color: 'text-[#438C91]' },
-            { label: 'What-If Sim', path: '/simulator', count: 'Interactive', icon: Sliders, color: 'text-[#188568]' },
-            { label: 'AI Assistant', path: '/assistant', count: 'Query Engine', icon: Bot, color: 'text-[#188568]' },
-          ].map((mod, idx) => (
-            <div
-              key={idx}
-              onClick={() => navigate(mod.path)}
-              className="p-3.5 rounded-lg bg-[#F7F8F5] border border-[#E1E7E2] hover:border-[#188568]/50 hover:bg-white transition-all cursor-pointer text-center group shadow-sm"
-            >
-              <mod.icon className={`w-5 h-5 mx-auto mb-2 ${mod.color} group-hover:scale-105 transition-transform`} />
-              <div className="text-xs font-semibold text-[#202B29] group-hover:text-[#188568]">{mod.label}</div>
-              <div className="text-[10px] text-[#697773] font-mono mt-0.5">{mod.count}</div>
-            </div>
-          ))}
         </div>
       </div>
     </div>

@@ -1,5 +1,61 @@
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
+export const TOKEN_STORAGE_KEY = 'citybrain_auth_token';
+
+export const getStoredToken = (): string | null => {
+  try {
+    return sessionStorage.getItem(TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+};
+
+export const setStoredToken = (token: string): void => {
+  try {
+    sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
+  } catch (e) {
+    console.error('Failed to save session token:', e);
+  }
+};
+
+export const removeStoredToken = (): void => {
+  try {
+    sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+  } catch (e) {
+    console.error('Failed to remove session token:', e);
+  }
+};
+
+/**
+ * Centralized API request helper.
+ * Automatically injects Authorization Bearer header if token exists in sessionStorage.
+ */
+export const apiFetch = async (endpoint: string, options: RequestInit = {}): Promise<Response> => {
+  const url = endpoint.startsWith('http://') || endpoint.startsWith('https://')
+    ? endpoint
+    : `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+
+  const token = getStoredToken();
+  const headers = new Headers(options.headers || {});
+
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  if (options.body && typeof options.body === 'string' && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  if (!headers.has('Accept')) {
+    headers.set('Accept', 'application/json');
+  }
+
+  return fetch(url, {
+    ...options,
+    headers,
+  });
+};
+
 const HYDERABAD_KNOWN_COORDS: Record<string, [number, number]> = {
   'uppal': [17.3984, 78.5583],
   'ghatkesar': [17.4475, 78.6835],
@@ -33,7 +89,7 @@ export const checkBackendHealth = async (): Promise<{ isConnected: boolean; late
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2500);
 
-    const response = await fetch(`${API_BASE_URL}/traffic`, {
+    const response = await apiFetch('/traffic', {
       method: 'GET',
       signal: controller.signal,
     });

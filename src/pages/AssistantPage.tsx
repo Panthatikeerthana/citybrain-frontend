@@ -4,51 +4,39 @@ import {
   Send, 
   User, 
   Sparkles, 
-  HelpCircle, 
-  Car, 
-  AlertTriangle, 
-  Droplets, 
-  Trash2, 
-  Wind, 
-  ShieldAlert,
-  ArrowRight,
-  Info
+  RotateCcw, 
+  AlertCircle,
+  HelpCircle,
+  ShieldCheck,
+  Zap,
+  Loader2
 } from 'lucide-react';
-import { useCityBrain } from '../context/CityBrainContext';
-import { DataSourceBadge } from '../components/common/DataSourceBadge';
 import { AssistantMessage } from '../types';
+import { sendAiMessage } from '../services/aiService';
+
+const INITIAL_MESSAGE: AssistantMessage = {
+  id: 'msg-welcome',
+  sender: 'assistant',
+  content: `Hello! I am City Brain AI — an intelligent urban management and predictive decision assistant for Greater Hyderabad.\n\nI combine Google Gemini generative reasoning with live MySQL telemetry spanning Traffic congestion, Weather, Emergency dispatches, Water distribution, Solid waste, Air Quality (AQI), Citizen complaints, and Predictive risks.\n\nHow can I assist your command operations today?`,
+  timestamp: 'Just now',
+  suggestedFollowups: [
+    'Which areas have high traffic?',
+    'What are the major urban risks?',
+    'Which complaints need urgent attention?',
+    'How can the city reduce waste?',
+    'What should authorities do during a severe emergency?',
+    'Analyze the current pollution records in Hyderabad.',
+    "Summarize today's available City Brain data."
+  ],
+};
 
 export const AssistantPage: React.FC = () => {
-  const { 
-    traffic, 
-    emergencies, 
-    waterIssues, 
-    wasteRecords, 
-    pollutionRecords, 
-    weather, 
-    riskPredictions,
-    complaints 
-  } = useCityBrain();
-
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [messages, setMessages] = useState<AssistantMessage[]>([INITIAL_MESSAGE]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const [messages, setMessages] = useState<AssistantMessage[]>([
-    {
-      id: 'msg-1',
-      sender: 'assistant',
-      content: 'Hello! I am the City Brain Urban Intelligence Assistant. I analyze real-time and simulated telemetry across traffic nodes, emergency dispatches, water networks, air quality sensors, and citizen reports in Greater Hyderabad. How can I assist your operations today?',
-      timestamp: 'Just now',
-      suggestedFollowups: [
-        'Which location has the highest traffic congestion?',
-        'Show all critical emergency incidents',
-        'Are there any water pipeline leakages reported?',
-        'What is the current air quality and weather status?',
-        'Summarize active predictive urban risks'
-      ],
-    }
-  ]);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -58,137 +46,11 @@ export const AssistantPage: React.FC = () => {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  // Query engine that extracts structured insights from live/demo state
-  const processQuery = (query: string): { response: string; followups: string[] } => {
-    const q = query.toLowerCase();
+  const handleSendMessage = async (textToSend?: string) => {
+    const query = (textToSend || input).trim();
+    if (!query || isTyping) return;
 
-    // 1. Highest traffic congestion
-    if (q.includes('traffic') || q.includes('congestion') || q.includes('highest')) {
-      const sorted = [...traffic].sort((a, b) => b.congestion - a.congestion);
-      const top = sorted[0] || { location: 'Hitec City', congestion: 85, vehicles: 4500, speedKmh: 12 };
-      const second = sorted[1] || { location: 'LB Nagar', congestion: 78, vehicles: 3900 };
-      return {
-        response: `Based on active telemetry, **${top.location}** currently reports the highest congestion at **${top.congestion}%** with approximately **${top.vehicles.toLocaleString()} vehicles/hr** (Speed: ~${top.speedKmh || 12} km/h). \n\nNext most congested node: **${second.location}** at **${second.congestion}%** (${second.vehicles.toLocaleString()} vehicles/hr).`,
-        followups: [
-          'What is the traffic congestion at LB Nagar?',
-          'What is the traffic congestion at Uppal?',
-          'Show active emergency incidents'
-        ]
-      };
-    }
-
-    // 2. Specific traffic junction check
-    if (q.includes('uppal') || q.includes('ghatkesar') || q.includes('lb nagar') || q.includes('kukatpally') || q.includes('jodimetla')) {
-      const locMatch = traffic.find(t => q.includes(t.location.toLowerCase().split(' ')[0]));
-      if (locMatch) {
-        return {
-          response: `**${locMatch.location} Traffic Status:**\n- Congestion Index: **${locMatch.congestion}%**\n- Volume: **${locMatch.vehicles.toLocaleString()} vehicles/hr**\n- Status: **${locMatch.status}**\n- Flow Speed: **~${locMatch.speedKmh || 20} km/h**\n- Telemetry Mode: ${locMatch.isLive ? 'Live Spring Boot /api/traffic' : 'Verified Hyderabad Demo Dataset'}`,
-          followups: ['Which location has highest traffic?', 'Show active risk predictions']
-        };
-      }
-    }
-
-    // 3. Emergency incidents
-    if (q.includes('emergency') || q.includes('incident') || q.includes('critical') || q.includes('accident') || q.includes('fire')) {
-      const critical = emergencies.filter(e => e.severity === 'Critical' || e.severity === 'High');
-      const list = critical.map(e => `- **[${e.severity}] ${e.title}** at ${e.location} (Status: ${e.status}, Responders: ${e.respondersAssigned.join(', ')})`).join('\n');
-      return {
-        response: `There are currently **${critical.length} High/Critical incidents** requiring immediate operational oversight:\n\n${list}`,
-        followups: [
-          'Show details on the LB Nagar flyover incident',
-          'Which location has highest traffic?',
-          'Are there any water leakages?'
-        ]
-      };
-    }
-
-    // 4. Water leaks & water supply
-    if (q.includes('water') || q.includes('leak') || q.includes('pipeline') || q.includes('pressure')) {
-      const leaks = waterIssues.filter(w => w.issueType === 'Pipeline Leakage');
-      const text = waterIssues.map(w => `- **${w.issueType}** at ${w.location} (${w.affectedHouseholds} households, Pressure: ${w.pressurePsi} PSI, Status: ${w.status})`).join('\n');
-      return {
-        response: `Active water network telemetry reveals **${waterIssues.length} issues** across the municipal grid (${leaks.length} confirmed pipeline leaks):\n\n${text}`,
-        followups: [
-          'What is the current weather status?',
-          'What waste bins are overflowing?'
-        ]
-      };
-    }
-
-    // 5. Waste & sanitation
-    if (q.includes('waste') || q.includes('garbage') || q.includes('bin') || q.includes('overflow')) {
-      const overflowing = wasteRecords.filter(w => w.fillPercentage >= 85);
-      const text = overflowing.map(w => `- **${w.location}**: Bin is **${w.fillPercentage}% full** (Priority: ${w.priority}, Assigned: ${w.vehicleAssigned || 'Unassigned'})`).join('\n');
-      return {
-        response: `Solid waste monitoring flags **${overflowing.length} bins overflowing or near capacity (≥85%)**:\n\n${text}`,
-        followups: [
-          'Show citizen complaints list',
-          'What is the overall city risk score?'
-        ]
-      };
-    }
-
-    // 6. Air quality & Pollution
-    if (q.includes('pollution') || q.includes('aqi') || q.includes('air quality') || q.includes('pm2.5')) {
-      const highest = [...pollutionRecords].sort((a, b) => b.aqi - a.aqi)[0] || { stationName: 'Sanathnagar Industrial Sector', aqi: 182, dominantPollutant: 'PM2.5', pm25: 88 };
-      return {
-        response: `Simulated ambient air telemetry indicates an average city AQI of **127 (Moderate)**.\n- Worst Station: **${highest.stationName}** at **AQI ${highest.aqi}** (Dominant pollutant: ${highest.dominantPollutant}, PM2.5: ${highest.pm25} µg/m³).\n- Cleanest Sector: **University of Hyderabad Eco Station** at **AQI 48 (Good)**.\n\n*Note: Simulated regional indicators for urban planning.*`,
-        followups: [
-          'What is the rainfall forecast?',
-          'Which location has highest traffic?'
-        ]
-      };
-    }
-
-    // 7. Weather status
-    if (q.includes('weather') || q.includes('rain') || q.includes('temperature') || q.includes('forecast')) {
-      return {
-        response: `**Current Meteorological Status for Greater Hyderabad:**\n- Temperature: **${weather.temperature || 31.4}°C** (Feels like ${weather.feelsLike || 34.2}°C)\n- Condition: **${weather.condition || 'Partly Cloudy'}**\n- Humidity: **${weather.humidity || 68}%**\n- 24h Cumulative Rainfall: **${weather.rainfall || 14.5} mm** (Heavy shower peak anticipated around 18:00)`,
-        followups: [
-          'Are there any waterlogging risks?',
-          'Which location has highest traffic?'
-        ]
-      };
-    }
-
-    // 8. Citizen Complaints
-    if (q.includes('complaint') || q.includes('grievance') || q.includes('citizen')) {
-      return {
-        response: `Currently **${complaints.length} citizen grievances** are registered in the local demonstration database. \n- Categories: Road/Potholes (${complaints.filter(c => c.category === 'Road & Potholes').length}), Drainage (${complaints.filter(c => c.category === 'Drainage').length}), Streetlights (${complaints.filter(c => c.category === 'Streetlight').length}).\n- Resolved: ${complaints.filter(c => c.status === 'Resolved').length}`,
-        followups: [
-          'How do I submit a new complaint?',
-          'Show predictive risks'
-        ]
-      };
-    }
-
-    // 9. Risk prediction overview
-    if (q.includes('risk') || q.includes('predict') || q.includes('rule') || q.includes('forecast risk')) {
-      const list = riskPredictions.map(r => `- **[Score ${r.riskScore}/100] ${r.title}** (${r.location}) — *Action:* ${r.recommendedAction}`).join('\n');
-      return {
-        response: `City Brain's rule-based predictive engine has flagged **${riskPredictions.length} impending risks**:\n\n${list}`,
-        followups: [
-          'Which location has highest traffic?',
-          'Show emergency incidents'
-        ]
-      };
-    }
-
-    // Default graceful fallback
-    return {
-      response: `I can query and correlate data across all City Brain modules in Greater Hyderabad, including **Traffic saturation**, **Emergency dispatches**, **Water leakages**, **Solid waste accumulation**, **Air quality (AQI)**, **Weather forecasts**, and **Predictive risk matrices**.\n\nPlease ask about any of these domains or click one of the suggested inquiries below.`,
-      followups: [
-        'Which location has the highest traffic congestion?',
-        'Show all critical emergency incidents',
-        'What is the current air quality and weather status?',
-        'Summarize active predictive urban risks'
-      ]
-    };
-  };
-
-  const handleSendMessage = (textToSend?: string) => {
-    const query = textToSend || input;
-    if (!query.trim()) return;
+    setErrorMessage(null);
 
     const userMsg: AssistantMessage = {
       id: `usr-${Date.now()}`,
@@ -201,48 +63,99 @@ export const AssistantPage: React.FC = () => {
     setInput('');
     setIsTyping(true);
 
-    // Simulate natural processing delay
-    setTimeout(() => {
-      const { response, followups } = processQuery(query);
+    try {
+      const responseText = await sendAiMessage(query);
+
       const assistantMsg: AssistantMessage = {
         id: `ast-${Date.now()}`,
         sender: 'assistant',
-        content: response,
+        content: responseText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        suggestedFollowups: followups,
+        suggestedFollowups: [
+          'Which areas have high traffic?',
+          'What are the major urban risks?',
+          'Summarize today\'s available City Brain data.'
+        ],
       };
+
       setMessages(prev => [...prev, assistantMsg]);
+    } catch (err: any) {
+      const errText = err?.message || 'Unable to connect to City Brain AI backend. Please verify your connection.';
+      setErrorMessage(errText);
+
+      const fallbackMsg: AssistantMessage = {
+        id: `err-${Date.now()}`,
+        sender: 'assistant',
+        content: `⚠️ **City Brain AI Notice:** ${errText}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setMessages(prev => [...prev, fallbackMsg]);
+    } finally {
       setIsTyping(false);
-    }, 600);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const handleClearChat = () => {
+    setMessages([INITIAL_MESSAGE]);
+    setErrorMessage(null);
+    setInput('');
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header Banner */}
       <div className="bg-white p-5 rounded-xl border border-[#E1E7E2] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-[#202B29] tracking-tight flex items-center gap-2">
+            <div className="w-10 h-10 rounded-xl bg-[#173D35] text-white flex items-center justify-center shadow-sm">
               <Bot className="w-6 h-6 text-[#188568]" />
-              <span>City Brain AI Operations Assistant</span>
-            </h1>
-            <DataSourceBadge source="rule-based" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-[#202B29] tracking-tight flex items-center gap-2">
+                <span>City Brain AI Assistant</span>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#188568]/10 text-[#188568] border border-[#188568]/20">
+                  Phase 3 • Gemini Powered
+                </span>
+              </h1>
+              <p className="text-xs sm:text-sm text-[#697773] mt-0.5">
+                Intelligent urban command and prediction agent connected to MySQL persistence & Google Gemini.
+              </p>
+            </div>
           </div>
-          <p className="text-xs sm:text-sm text-[#697773] mt-1">
-            Internal telemetry reasoning engine assisting command operators with instant multi-domain queries and analysis.
-          </p>
         </div>
 
-        <div className="flex items-center gap-2 text-xs font-semibold text-[#188568] bg-[#188568]/10 border border-[#188568]/20 px-3 py-1.5 rounded-lg shrink-0">
-          <Sparkles className="w-4 h-4 text-[#188568]" />
-          <span>Local Telemetry Semantic Engine</span>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleClearChat}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#697773] hover:text-[#202B29] bg-[#F7F8F5] hover:bg-[#E1E7E2] border border-[#E1E7E2] rounded-lg transition-all shadow-sm"
+            title="Reset conversation"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Clear Chat</span>
+          </button>
+
+          <div className="flex items-center gap-2 text-xs font-semibold text-[#188568] bg-[#188568]/10 border border-[#188568]/20 px-3 py-2 rounded-lg shrink-0">
+            <Sparkles className="w-4 h-4 text-[#188568]" />
+            <span className="hidden md:inline">Gemini & MySQL Ground Truth</span>
+            <span className="md:hidden">AI Active</span>
+          </div>
         </div>
       </div>
 
-      {/* Main Chat Container */}
-      <div className="bg-white rounded-xl border border-[#E1E7E2] shadow-sm overflow-hidden flex flex-col h-[640px]">
-        {/* Chat History */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+      {/* Main Chat View */}
+      <div className="bg-white rounded-xl border border-[#E1E7E2] shadow-sm overflow-hidden flex flex-col h-[680px]">
+        {/* Messages Stream */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
           {messages.map((msg) => (
             <div
               key={msg.id}
@@ -252,17 +165,17 @@ export const AssistantPage: React.FC = () => {
             >
               {/* Avatar */}
               <div
-                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-1 ${
+                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 shadow-sm ${
                   msg.sender === 'user'
                     ? 'bg-[#188568] text-white'
                     : 'bg-[#173D35] text-white'
                 }`}
               >
-                {msg.sender === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+                {msg.sender === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-5 h-5" />}
               </div>
 
-              {/* Message Bubble */}
-              <div className="space-y-2">
+              {/* Message Content */}
+              <div className="space-y-2 flex-1">
                 <div
                   className={`p-4 rounded-xl text-xs sm:text-sm leading-relaxed border ${
                     msg.sender === 'user'
@@ -270,13 +183,18 @@ export const AssistantPage: React.FC = () => {
                       : 'bg-[#F7F8F5] border-[#E1E7E2] text-[#202B29] rounded-tl-none shadow-sm'
                   }`}
                 >
-                  <div className="whitespace-pre-line font-sans">{msg.content}</div>
+                  <div className="whitespace-pre-line font-sans leading-relaxed">
+                    {msg.content}
+                  </div>
                   <div
-                    className={`text-[10px] font-mono mt-2 pt-1 border-t ${
-                      msg.sender === 'user' ? 'border-white/20 text-white/80 text-right' : 'border-[#E1E7E2] text-[#697773]'
+                    className={`text-[10px] font-mono mt-2 pt-1 border-t flex items-center justify-between ${
+                      msg.sender === 'user' 
+                        ? 'border-white/20 text-white/80' 
+                        : 'border-[#E1E7E2] text-[#697773]'
                     }`}
                   >
-                    {msg.timestamp}
+                    <span>{msg.sender === 'user' ? 'Operator' : 'City Brain AI'}</span>
+                    <span>{msg.timestamp}</span>
                   </div>
                 </div>
 
@@ -286,8 +204,9 @@ export const AssistantPage: React.FC = () => {
                     {msg.suggestedFollowups.map((f, idx) => (
                       <button
                         key={idx}
+                        disabled={isTyping}
                         onClick={() => handleSendMessage(f)}
-                        className="px-3 py-1 bg-white hover:bg-[#F7F8F5] border border-[#E1E7E2] hover:border-[#188568]/40 rounded-full text-xs text-[#202B29] hover:text-[#188568] transition-all font-sans text-left shadow-sm"
+                        className="px-3 py-1.5 bg-white hover:bg-[#F7F8F5] border border-[#E1E7E2] hover:border-[#188568]/50 rounded-full text-xs text-[#202B29] hover:text-[#188568] transition-all font-sans text-left shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         💡 {f}
                       </button>
@@ -301,18 +220,36 @@ export const AssistantPage: React.FC = () => {
           {/* Typing Indicator */}
           {isTyping && (
             <div className="flex gap-3 max-w-xl mr-auto animate-fadeIn">
-              <div className="w-8 h-8 rounded-lg bg-[#173D35] text-white flex items-center justify-center shrink-0 mt-1">
-                <Bot className="w-4 h-4 animate-pulse" />
+              <div className="w-9 h-9 rounded-xl bg-[#173D35] text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                <Bot className="w-5 h-5 animate-pulse text-[#188568]" />
               </div>
-              <div className="p-3.5 bg-[#F7F8F5] border border-[#E1E7E2] rounded-xl rounded-tl-none flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#188568] animate-bounce"></span>
-                <span className="w-2 h-2 rounded-full bg-[#188568] animate-bounce [animation-delay:0.2s]"></span>
-                <span className="w-2 h-2 rounded-full bg-[#188568] animate-bounce [animation-delay:0.4s]"></span>
+              <div className="p-4 bg-[#F7F8F5] border border-[#E1E7E2] rounded-xl rounded-tl-none flex items-center gap-2">
+                <Loader2 className="w-4 h-4 text-[#188568] animate-spin" />
+                <span className="text-xs text-[#697773] font-medium font-sans">
+                  Querying MySQL context & synthesizing Gemini intelligence...
+                </span>
               </div>
             </div>
           )}
+
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Error notification bar if present */}
+        {errorMessage && (
+          <div className="px-4 py-2.5 bg-red-50 border-t border-red-200 flex items-center justify-between text-xs text-red-700">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="font-bold underline hover:text-red-900 ml-4 text-[11px]"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Input Bar */}
         <div className="p-4 bg-[#F7F8F5] border-t border-[#E1E7E2]">
@@ -321,33 +258,54 @@ export const AssistantPage: React.FC = () => {
               e.preventDefault();
               handleSendMessage();
             }}
-            className="flex items-center gap-2"
+            className="flex items-end gap-2"
           >
-            <input
-              type="text"
-              placeholder="Ask City Brain about traffic, flood risks, air quality, or emergencies..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              className="flex-1 bg-white border border-[#E1E7E2] rounded-lg px-4 py-3 text-xs sm:text-sm text-[#202B29] placeholder-[#697773] outline-none focus:border-[#188568] transition-all font-sans"
-            />
+            <div className="flex-1 relative">
+              <textarea
+                ref={inputRef}
+                rows={2}
+                placeholder="Ask City Brain AI (e.g., 'Which areas have high traffic?' or 'What are the major urban risks?')..."
+                value={input}
+                disabled={isTyping}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="w-full bg-white border border-[#E1E7E2] rounded-xl px-4 py-3 text-xs sm:text-sm text-[#202B29] placeholder-[#697773] outline-none focus:border-[#188568] transition-all font-sans resize-none disabled:bg-[#F7F8F5]"
+              />
+              <div className="absolute right-3 bottom-2.5 text-[10px] text-[#697773] font-mono pointer-events-none hidden sm:block">
+                Press Enter to send • Shift+Enter for new line
+              </div>
+            </div>
+
             <button
               type="submit"
-              disabled={!input.trim()}
-              className={`p-3 rounded-lg transition-all ${
-                input.trim()
-                  ? 'bg-[#188568] hover:bg-[#11654F] text-white font-bold cursor-pointer shadow-sm'
+              disabled={!input.trim() || isTyping}
+              className={`p-3.5 rounded-xl transition-all shrink-0 flex items-center justify-center ${
+                input.trim() && !isTyping
+                  ? 'bg-[#188568] hover:bg-[#11654F] text-white cursor-pointer shadow-sm active:scale-95'
                   : 'bg-[#E1E7E2] text-[#697773] cursor-not-allowed'
               }`}
+              title="Send message"
             >
-              <Send className="w-4 h-4" />
+              {isTyping ? (
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
             </button>
           </form>
-          <div className="text-[11px] text-[#697773] font-mono text-center mt-2">
-            City Brain Internal Urban Analytics Engine • Queries live data in context
+
+          <div className="flex items-center justify-between text-[11px] text-[#697773] font-mono mt-2.5 px-1">
+            <span className="flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#188568]" />
+              Secure Server Proxy (`/api/ai/chat`)
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5 text-amber-600" />
+              15 requests/min limit
+            </span>
           </div>
         </div>
       </div>
     </div>
   );
 };
-

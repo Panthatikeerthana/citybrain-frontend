@@ -8,17 +8,21 @@ import {
   EmergencyIncident, 
   CitizenComplaint, 
   RiskPrediction,
-  SystemStatus
+  SystemStatus,
+  LiveWeatherData,
+  LivePollutionData,
+  LiveTrafficData
 } from '../types';
 import { checkBackendHealth } from '../services/api';
-import { fetchTrafficData } from '../services/trafficService';
-import { fetchWeatherData } from '../services/weatherService';
+import { fetchTrafficData, fetchLiveTraffic } from '../services/trafficService';
+import { fetchWeatherData, fetchLiveWeather } from '../services/weatherService';
 import { fetchWaterIssues } from '../services/waterService';
 import { fetchWasteRecords } from '../services/wasteService';
-import { fetchPollutionRecords } from '../services/pollutionService';
+import { fetchPollutionRecords, fetchLivePollution } from '../services/pollutionService';
 import { fetchEmergencyIncidents, updateIncidentStatus } from '../services/emergencyService';
-import { getComplaints, submitComplaint as addComplaintToStorage } from '../services/complaintService';
-import { evaluateUrbanRisks } from '../services/riskService';
+import { getComplaints, submitComplaint } from '../services/complaintService';
+import { fetchRiskPredictions } from '../services/riskService';
+import { useAuth } from './AuthContext';
 
 interface AlertNotification {
   id: string;
@@ -40,15 +44,27 @@ interface CityBrainContextType {
   emergencies: EmergencyIncident[];
   complaints: CitizenComplaint[];
   riskPredictions: RiskPrediction[];
+  // Phase 4 Live Telemetry State
+  liveWeather: LiveWeatherData | null;
+  livePollution: LivePollutionData | null;
+  liveTraffic: LiveTrafficData | null;
   notifications: AlertNotification[];
   unreadCount: number;
   isLoading: boolean;
   lastRefresh: Date;
   refreshAllData: () => Promise<void>;
+  refreshLiveTelemetry: (force?: boolean) => Promise<void>;
   markNotificationRead: (id: string) => void;
   clearNotifications: () => void;
-  addComplaint: (complaint: Omit<CitizenComplaint, 'id' | 'createdAt' | 'status' | 'isLocalDemo'>) => CitizenComplaint;
-  updateEmergencyStatus: (id: string, status: EmergencyIncident['status']) => Promise<void>;
+  addComplaint: (complaint: {
+    citizenName: string;
+    category: string;
+    description: string;
+    location: string;
+    priority?: string;
+    status?: string;
+  }) => Promise<CitizenComplaint>;
+  updateEmergencyStatus: (id: string | number, status: string) => Promise<void>;
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
 }
@@ -56,6 +72,8 @@ interface CityBrainContextType {
 const CityBrainContext = createContext<CityBrainContextType | undefined>(undefined);
 
 export const CityBrainProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated } = useAuth();
+
   const [traffic, setTraffic] = useState<TrafficRecord[]>([]);
   const [weather, setWeather] = useState<WeatherData>({} as WeatherData);
   const [waterIssues, setWaterIssues] = useState<WaterIssue[]>([]);
@@ -64,57 +82,74 @@ export const CityBrainProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [emergencies, setEmergencies] = useState<EmergencyIncident[]>([]);
   const [complaints, setComplaints] = useState<CitizenComplaint[]>([]);
   const [riskPredictions, setRiskPredictions] = useState<RiskPrediction[]>([]);
+
+  // Phase 4 Live Telemetry
+  const [liveWeather, setLiveWeather] = useState<LiveWeatherData | null>(null);
+  const [livePollution, setLivePollution] = useState<LivePollutionData | null>(null);
+  const [liveTraffic, setLiveTraffic] = useState<LiveTrafficData | null>(null);
   
   const [systemStatus, setSystemStatus] = useState<SystemStatus>({
     backendConnected: false,
     backendUrl: 'http://localhost:8080/api',
     lastChecked: new Date().toLocaleTimeString(),
-    trafficSource: 'demo',
-    weatherSource: 'demo',
+    trafficSource: 'unavailable',
+    weatherSource: 'unavailable',
     latencyMs: 0,
   });
 
-  const [notifications, setNotifications] = useState<AlertNotification[]>([
-    {
-      id: 'notif-1',
-      title: 'High Congestion Alert',
-      message: 'LB Nagar Corridor congestion reached 81% (1,560 veh/hr).',
-      type: 'critical',
-      timestamp: '2 mins ago',
-      read: false,
-      link: '/traffic',
-    },
-    {
-      id: 'notif-2',
-      title: 'Severe Incident Dispatched',
-      message: 'Multi-vehicle collision on LB Nagar Flyover ramp. Units en route.',
-      type: 'warning',
-      timestamp: '14 mins ago',
-      read: false,
-      link: '/emergency',
-    },
-    {
-      id: 'notif-3',
-      title: 'Drain Inundation Risk',
-      message: 'Culvert overflow risk flagged at Uppal Low-Lying Underpass.',
-      type: 'critical',
-      timestamp: '30 mins ago',
-      read: false,
-      link: '/risk-prediction',
-    },
-  ]);
+  const [notifications, setNotifications] = useState<AlertNotification[]>([]);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [searchOpen, setSearchOpen] = useState<boolean>(false);
 
+  const refreshLiveTelemetry = useCallback(async (force: boolean = false) => {
+    if (!isAuthenticated) return;
+    try {
+      const [w, p, t] = await Promise.all([
+        fetchLiveWeather(undefined, undefined, force).catch(() => null),
+        fetchLivePollution(undefined, undefined, force).catch(() => null),
+        fetchLiveTraffic(force).catch(() => null),
+      ]);
+      if (w) setLiveWeather(w);
+      if (p) setLivePollution(p);
+      if (t) setLiveTraffic(t);
+    } catch (e) {
+      console.warn('Live telemetry refresh notice:', e);
+    }
+  }, [isAuthenticated]);
+
   const refreshAllData = useCallback(async () => {
     setIsLoading(true);
     try {
-      // 1. Health check
+      if (!isAuthenticated) {
+        setTraffic([]);
+        setWeather({} as WeatherData);
+        setWaterIssues([]);
+        setWasteRecords([]);
+        setPollutionRecords([]);
+        setEmergencies([]);
+        setComplaints([]);
+        setRiskPredictions([]);
+        setLiveWeather(null);
+        setLivePollution(null);
+        setLiveTraffic(null);
+
+        setSystemStatus({
+          backendConnected: false,
+          backendUrl: 'http://localhost:8080/api',
+          lastChecked: new Date().toLocaleTimeString(),
+          trafficSource: 'unavailable',
+          weatherSource: 'unavailable',
+          latencyMs: 0,
+        });
+        return;
+      }
+
+      // 1. Health check with JWT
       const health = await checkBackendHealth();
 
-      // 2. Parallel data fetching
+      // 2. Parallel data fetching directly from MySQL + Live Telemetry
       const [
         trafficRes,
         weatherRes,
@@ -122,16 +157,24 @@ export const CityBrainProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         wasteRes,
         pollutionRes,
         emergencyRes,
+        complaintsData,
+        risksRes,
+        liveWeatherRes,
+        livePollutionRes,
+        liveTrafficRes,
       ] = await Promise.all([
-        fetchTrafficData(),
-        fetchWeatherData(),
-        fetchWaterIssues(),
-        fetchWasteRecords(),
-        fetchPollutionRecords(),
-        fetchEmergencyIncidents(),
+        fetchTrafficData().catch(() => ({ data: [], isLive: false, message: '' })),
+        fetchWeatherData().catch(() => ({ data: {} as WeatherData, isLive: false, message: '' })),
+        fetchWaterIssues().catch(() => ({ data: [], isLive: false, message: '' })),
+        fetchWasteRecords().catch(() => ({ data: [], isLive: false, message: '' })),
+        fetchPollutionRecords().catch(() => ({ data: [], isLive: false, message: '' })),
+        fetchEmergencyIncidents().catch(() => ({ data: [], isLive: false, message: '' })),
+        getComplaints().catch(() => []),
+        fetchRiskPredictions().catch(() => ({ data: [], isLive: false, message: '' })),
+        fetchLiveWeather().catch(() => null),
+        fetchLivePollution().catch(() => null),
+        fetchLiveTraffic().catch(() => null),
       ]);
-
-      const localComplaints = getComplaints();
 
       setTraffic(trafficRes.data);
       setWeather(weatherRes.data);
@@ -139,23 +182,19 @@ export const CityBrainProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setWasteRecords(wasteRes.data);
       setPollutionRecords(pollutionRes.data);
       setEmergencies(emergencyRes.data);
-      setComplaints(localComplaints);
+      setComplaints(complaintsData);
+      setRiskPredictions(risksRes.data);
 
-      // Evaluate dynamic risks based on updated data
-      const evaluatedRisks = evaluateUrbanRisks(
-        trafficRes.data,
-        weatherRes.data,
-        emergencyRes.data,
-        wasteRes.data
-      );
-      setRiskPredictions(evaluatedRisks);
+      if (liveWeatherRes) setLiveWeather(liveWeatherRes);
+      if (livePollutionRes) setLivePollution(livePollutionRes);
+      if (liveTrafficRes) setLiveTraffic(liveTrafficRes);
 
       setSystemStatus({
         backendConnected: health.isConnected,
         backendUrl: 'http://localhost:8080/api',
         lastChecked: new Date().toLocaleTimeString(),
-        trafficSource: trafficRes.isLive ? 'live' : 'demo',
-        weatherSource: weatherRes.isLive ? 'live' : 'demo',
+        trafficSource: liveTrafficRes?.configured ? 'live' : 'stored',
+        weatherSource: liveWeatherRes ? 'live' : 'stored',
         latencyMs: health.latencyMs,
       });
 
@@ -165,14 +204,16 @@ export const CityBrainProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     refreshAllData();
-    // Auto sync every 30 seconds
-    const interval = setInterval(refreshAllData, 30000);
-    return () => clearInterval(interval);
-  }, [refreshAllData]);
+    if (isAuthenticated) {
+      // Refresh telemetry every 60 seconds
+      const interval = setInterval(refreshAllData, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated, refreshAllData]);
 
   const markNotificationRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
@@ -182,9 +223,23 @@ export const CityBrainProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setNotifications([]);
   };
 
-  const addComplaint = (complaint: Omit<CitizenComplaint, 'id' | 'createdAt' | 'status' | 'isLocalDemo'>) => {
-    const created = addComplaintToStorage(complaint);
-    setComplaints(getComplaints());
+  const addComplaint = async (complaint: {
+    citizenName: string;
+    category: string;
+    description: string;
+    location: string;
+    priority?: string;
+    status?: string;
+  }): Promise<CitizenComplaint> => {
+    const created = await submitComplaint(complaint);
+    
+    // Refresh complaints from MySQL
+    try {
+      const refreshed = await getComplaints();
+      setComplaints(refreshed);
+    } catch {
+      setComplaints(prev => [created, ...prev]);
+    }
     
     // Add an alert notification
     const newNotif: AlertNotification = {
@@ -201,7 +256,7 @@ export const CityBrainProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return created;
   };
 
-  const updateEmergencyStatus = async (id: string, status: EmergencyIncident['status']) => {
+  const updateEmergencyStatus = async (id: string | number, status: string) => {
     const updated = await updateIncidentStatus(id, status);
     setEmergencies(updated);
   };
@@ -220,11 +275,15 @@ export const CityBrainProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         emergencies,
         complaints,
         riskPredictions,
+        liveWeather,
+        livePollution,
+        liveTraffic,
         notifications,
         unreadCount,
         isLoading,
         lastRefresh,
         refreshAllData,
+        refreshLiveTelemetry,
         markNotificationRead,
         clearNotifications,
         addComplaint,

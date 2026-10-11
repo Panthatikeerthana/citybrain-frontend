@@ -152,7 +152,7 @@ export const CityMap: React.FC<CityMapProps> = ({
               <div>Estimated Speed: <strong style="color:#202B29">${t.speedKmh || 25} km/h</strong></div>
             </div>
             <div style="font-size: 10px; color: #697773; border-top: 1px solid #E1E7E2; padding-top: 4px;">
-              Source: ${t.isLive ? 'Live API Telemetry' : 'Verified Hyderabad Demo Stream'}
+              Source: ${t.isLive ? 'Live TomTom Telemetry' : 'Database Record'}
             </div>
           </div>
         `;
