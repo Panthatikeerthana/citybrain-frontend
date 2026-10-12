@@ -1,4 +1,4 @@
-const envBase = (import.meta.env.VITE_API_BASE_URL || 'https://citybrain-backend.onrender.com/api').trim();
+const envBase = (import.meta.env.VITE_API_BASE_URL || '/api').trim();
 export const API_BASE_URL = envBase.replace(/\/+$/, '');
 
 export const TOKEN_STORAGE_KEY = 'citybrain_auth_token';
