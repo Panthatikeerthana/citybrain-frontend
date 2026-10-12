@@ -91,7 +91,7 @@ export const checkBackendHealth = async (): Promise<{ isConnected: boolean; late
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2500);
 
-    const response = await apiFetch('/traffic', {
+    const response = await apiFetch('/health', {
       method: 'GET',
       signal: controller.signal,
     });

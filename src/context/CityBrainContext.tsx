@@ -13,7 +13,7 @@ import {
   LivePollutionData,
   LiveTrafficData
 } from '../types';
-import { checkBackendHealth } from '../services/api';
+import { checkBackendHealth, API_BASE_URL } from '../services/api';
 import { fetchTrafficData, fetchLiveTraffic } from '../services/trafficService';
 import { fetchWeatherData, fetchLiveWeather } from '../services/weatherService';
 import { fetchWaterIssues } from '../services/waterService';
@@ -90,7 +90,7 @@ export const CityBrainProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   
   const [systemStatus, setSystemStatus] = useState<SystemStatus>({
     backendConnected: false,
-    backendUrl: 'http://localhost:8080/api',
+    backendUrl: API_BASE_URL,
     lastChecked: new Date().toLocaleTimeString(),
     trafficSource: 'unavailable',
     weatherSource: 'unavailable',
@@ -137,7 +137,7 @@ export const CityBrainProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         setSystemStatus({
           backendConnected: false,
-          backendUrl: 'http://localhost:8080/api',
+          backendUrl: API_BASE_URL,
           lastChecked: new Date().toLocaleTimeString(),
           trafficSource: 'unavailable',
           weatherSource: 'unavailable',
@@ -191,7 +191,7 @@ export const CityBrainProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       setSystemStatus({
         backendConnected: health.isConnected,
-        backendUrl: 'http://localhost:8080/api',
+        backendUrl: API_BASE_URL,
         lastChecked: new Date().toLocaleTimeString(),
         trafficSource: liveTrafficRes?.configured ? 'live' : 'stored',
         weatherSource: liveWeatherRes ? 'live' : 'stored',
