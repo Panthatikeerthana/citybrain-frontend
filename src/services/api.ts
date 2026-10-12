@@ -75,7 +75,7 @@ const HYDERABAD_KNOWN_COORDS: Record<string, [number, number]> = {
   'mehdipatnam': [17.3916, 78.4397],
 };
 
-const resolveCoordinates = (locationName: string): [number, number] => {
+export const resolveCoordinates = (locationName: string): [number, number] => {
   const norm = locationName.toLowerCase().trim();
   for (const [key, coords] of Object.entries(HYDERABAD_KNOWN_COORDS)) {
     if (norm.includes(key)) {

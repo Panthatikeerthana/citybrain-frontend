@@ -67,3 +67,57 @@ export const fetchTrafficData = async (): Promise<TrafficFetchResult> => {
     };
   }
 };
+
+export const createTrafficRecord = async (record: {
+  location: string;
+  congestion: number;
+  vehicles: number;
+  status?: string;
+}): Promise<TrafficRecord> => {
+  const response = await apiFetch('/traffic', {
+    method: 'POST',
+    body: JSON.stringify(record),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => null);
+    throw new Error(err?.message || `Failed to create traffic record: ${response.status}`);
+  }
+
+  const created = await response.json();
+  return normalizeTrafficRecord(created);
+};
+
+export const updateTrafficRecord = async (
+  id: string | number,
+  updatedData: Partial<{
+    location: string;
+    congestion: number;
+    vehicles: number;
+    status: string;
+  }>
+): Promise<TrafficRecord> => {
+  const response = await apiFetch(`/traffic/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(updatedData),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => null);
+    throw new Error(err?.message || `Failed to update traffic record #${id}: ${response.status}`);
+  }
+
+  const updated = await response.json();
+  return normalizeTrafficRecord(updated);
+};
+
+export const deleteTrafficRecord = async (id: string | number): Promise<void> => {
+  const response = await apiFetch(`/traffic/${id}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok && response.status !== 204) {
+    throw new Error(`Failed to delete traffic record #${id}: ${response.status}`);
+  }
+};
+

@@ -8,7 +8,12 @@ import {
   Activity, 
   ShieldAlert, 
   Gauge, 
-  RefreshCw
+  RefreshCw,
+  PlusCircle,
+  X,
+  CheckCircle2,
+  AlertCircle,
+  Trash2
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -24,6 +29,7 @@ import { useCityBrain } from '../context/CityBrainContext';
 import { StatCard } from '../components/common/StatCard';
 import { SeverityBadge } from '../components/common/SeverityBadge';
 import { DataSourceBadge } from '../components/common/DataSourceBadge';
+import { createTrafficRecord, deleteTrafficRecord } from '../services/trafficService';
 
 export const TrafficPage: React.FC = () => {
   const { traffic, liveTraffic, systemStatus, isLoading, refreshAllData } = useCityBrain();
@@ -32,6 +38,19 @@ export const TrafficPage: React.FC = () => {
   const [severityFilter, setSeverityFilter] = useState('all');
   const [sortField, setSortField] = useState<'congestion' | 'vehicles' | 'location'>('congestion');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  // Modals and form state
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    location: '',
+    congestion: 50,
+    vehicles: 2000,
+    status: 'Moderate',
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | number | null>(null);
 
   // Filtered and sorted traffic list
   const filteredTraffic = useMemo(() => {
@@ -104,6 +123,54 @@ export const TrafficPage: React.FC = () => {
     return '#23865D';
   };
 
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createForm.location.trim()) {
+      setActionError('Location / Corridor name is required.');
+      return;
+    }
+    setIsSubmitting(true);
+    setActionError(null);
+    try {
+      await createTrafficRecord({
+        location: createForm.location,
+        congestion: Number(createForm.congestion),
+        vehicles: Number(createForm.vehicles),
+        status: createForm.status,
+      });
+      await refreshAllData();
+      setActionSuccess('Traffic corridor record saved to MySQL successfully.');
+      setTimeout(() => setActionSuccess(null), 3000);
+      setShowCreateModal(false);
+      setCreateForm({
+        location: '',
+        congestion: 50,
+        vehicles: 2000,
+        status: 'Moderate',
+      });
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to create traffic record.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string | number) => {
+    if (!window.confirm(`Delete traffic corridor record #${id} from MySQL?`)) return;
+    setDeletingId(id);
+    setActionError(null);
+    try {
+      await deleteTrafficRecord(id);
+      await refreshAllData();
+      setActionSuccess(`Corridor record #${id} deleted from MySQL.`);
+      setTimeout(() => setActionSuccess(null), 3000);
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to delete record.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -133,8 +200,33 @@ export const TrafficPage: React.FC = () => {
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-[#188568]' : 'text-[#188568]'}`} />
             <span>Sync Traffic Feed</span>
           </button>
+
+          <button
+            onClick={() => {
+              setShowCreateModal(true);
+              setActionError(null);
+            }}
+            className="flex items-center gap-2 px-3.5 py-2 bg-[#188568] hover:bg-[#11654F] text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
+          >
+            <PlusCircle className="w-3.5 h-3.5" />
+            <span>Log Corridor Flow</span>
+          </button>
         </div>
       </div>
+
+      {actionSuccess && (
+        <div className="p-3 bg-[#F2FAF7] border border-[#9CE3D1] rounded-lg text-xs text-[#11654F] flex items-center gap-2 animate-fadeIn">
+          <CheckCircle2 className="w-4 h-4 text-[#188568] shrink-0" />
+          <span>{actionSuccess}</span>
+        </div>
+      )}
+
+      {actionError && (
+        <div className="p-3 bg-[#FDF2F2] border border-[#FADCDA] rounded-lg text-xs text-[#D64545] flex items-center gap-2 animate-fadeIn">
+          <AlertCircle className="w-4 h-4 text-[#D64545] shrink-0" />
+          <span>{actionError}</span>
+        </div>
+      )}
 
       {/* Live TomTom Traffic Status Banner */}
       <div className={`p-4 rounded-xl border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
@@ -422,14 +514,15 @@ export const TrafficPage: React.FC = () => {
                 <th className="py-3 px-4">Est. Speed</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4">Recorded At</th>
-                <th className="py-3 px-4 text-right">Data Source</th>
+                <th className="py-3 px-4 text-center">Data Source</th>
+                <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E1E7E2]">
               {filteredTraffic.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-[#697773]">
-                    No traffic records found in database. Live traffic stream requires TomTom API key configuration.
+                  <td colSpan={8} className="py-8 text-center text-[#697773]">
+                    No traffic records found in database. Use &quot;Log Corridor Flow&quot; to add ground-truth corridor data.
                   </td>
                 </tr>
               ) : (
@@ -465,7 +558,7 @@ export const TrafficPage: React.FC = () => {
                     <td className="py-3 px-4 font-mono text-[#697773] text-[11px]">
                       {row.recorded_at ? new Date(row.recorded_at).toLocaleTimeString() : 'Recent'}
                     </td>
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3 px-4 text-center">
                       <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-semibold ${
                         row.isLive 
                           ? 'bg-[#F2FAF7] text-[#11654F] border border-[#9CE3D1]' 
@@ -474,6 +567,18 @@ export const TrafficPage: React.FC = () => {
                         {row.isLive ? 'LIVE' : 'STORED'}
                       </span>
                     </td>
+                    <td className="py-3 px-4 text-right">
+                      {!row.isLive && (
+                        <button
+                          onClick={() => handleDelete(row.id)}
+                          disabled={deletingId === row.id}
+                          className="p-1.5 text-[#D64545] hover:bg-red-50 rounded-md transition-colors"
+                          title="Delete record from MySQL"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))
               )}
@@ -481,6 +586,109 @@ export const TrafficPage: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Create Corridor Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-md w-full border border-[#E1E7E2] shadow-2xl p-6 relative animate-scaleUp">
+            <button
+              onClick={() => setShowCreateModal(false)}
+              className="absolute top-4 right-4 text-[#86928E] hover:text-[#202B29] p-1 rounded-md"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <h3 className="text-base font-bold text-[#202B29] mb-1 flex items-center gap-2">
+              <Car className="w-4 h-4 text-[#188568]" />
+              <span>Log Urban Traffic Corridor</span>
+            </h3>
+            <p className="text-xs text-[#697773] mb-4">
+              Persist real traffic flow sensor metrics directly into Aiven MySQL database.
+            </p>
+
+            <form onSubmit={handleCreateSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#202B29] mb-1">
+                  Corridor / Junction Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. HITEC City - Cyber Towers"
+                  value={createForm.location}
+                  onChange={(e) => setCreateForm({ ...createForm, location: e.target.value })}
+                  className="w-full text-xs px-3 py-2 border border-[#E1E7E2] rounded-lg focus:outline-none focus:border-[#188568]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#202B29] mb-1">
+                    Congestion Level (%)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    required
+                    value={createForm.congestion}
+                    onChange={(e) => setCreateForm({ ...createForm, congestion: Number(e.target.value) })}
+                    className="w-full text-xs px-3 py-2 border border-[#E1E7E2] rounded-lg focus:outline-none focus:border-[#188568]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#202B29] mb-1">
+                    Vehicles / Hour
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={createForm.vehicles}
+                    onChange={(e) => setCreateForm({ ...createForm, vehicles: Number(e.target.value) })}
+                    className="w-full text-xs px-3 py-2 border border-[#E1E7E2] rounded-lg focus:outline-none focus:border-[#188568]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#202B29] mb-1">
+                  Traffic Status
+                </label>
+                <select
+                  value={createForm.status}
+                  onChange={(e) => setCreateForm({ ...createForm, status: e.target.value })}
+                  className="w-full text-xs px-3 py-2 border border-[#E1E7E2] rounded-lg focus:outline-none focus:border-[#188568] bg-white"
+                >
+                  <option value="Smooth">Smooth (Flowing)</option>
+                  <option value="Moderate">Moderate (Steady)</option>
+                  <option value="Heavy Congestion">Heavy Congestion</option>
+                  <option value="Severe Congestion">Severe Congestion</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 border border-[#E1E7E2] rounded-lg text-xs font-semibold text-[#697773] hover:bg-[#F7F8F5]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-[#188568] hover:bg-[#11654F] text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5"
+                >
+                  {isSubmitting ? 'Saving...' : 'Save to MySQL'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

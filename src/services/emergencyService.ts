@@ -1,5 +1,5 @@
 import { EmergencyIncident } from '../types';
-import { apiFetch } from './api';
+import { apiFetch, resolveCoordinates } from './api';
 
 export const fetchEmergencyIncidents = async (): Promise<{ data: EmergencyIncident[]; isLive: boolean; message: string }> => {
   const response = await apiFetch('/emergencies');
@@ -16,6 +16,7 @@ export const fetchEmergencyIncidents = async (): Promise<{ data: EmergencyIncide
     timestamp: item.reportedAt || item.reported_at || new Date().toISOString(),
     reportedAt: item.reportedAt || item.reported_at || new Date().toISOString(),
     respondersAssigned: item.respondersAssigned || ['DRF Unit 4', 'Traffic Police Unit'],
+    coordinates: item.coordinates || resolveCoordinates(item.location),
     isLive: true,
   }));
 

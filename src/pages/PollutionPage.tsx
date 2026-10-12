@@ -240,7 +240,7 @@ export const PollutionPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="bg-white px-3 py-2 rounded-lg border border-teal-200 text-center">
               <span className="text-[10px] text-[#86928E] block uppercase font-bold">PM2.5</span>
               <span className="text-sm font-black text-[#202B29]">{livePollution.pm25} µg/m³</span>
@@ -253,6 +253,35 @@ export const PollutionPage: React.FC = () => {
               <span className="text-[10px] text-[#86928E] block uppercase font-bold">Dominant</span>
               <span className="text-sm font-black text-[#202B29]">{livePollution.dominantPollutant}</span>
             </div>
+            <button
+              onClick={async () => {
+                if (!livePollution) return;
+                setIsSubmitting(true);
+                setActionError(null);
+                try {
+                  await createPollutionRecord({
+                    location: `${livePollution.location} Automated Station`,
+                    aqi: livePollution.aqi,
+                    pm25: livePollution.pm25,
+                    pm10: livePollution.pm10,
+                    status: livePollution.category,
+                  });
+                  await refreshAllData();
+                  setActionSuccess('Live air quality observation persisted to MySQL database.');
+                  setTimeout(() => setActionSuccess(null), 3000);
+                } catch (err: any) {
+                  setActionError(err.message || 'Failed to save live air quality to database.');
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}
+              disabled={isSubmitting}
+              className="flex items-center gap-1.5 px-3 py-2 bg-[#188568] hover:bg-[#11654F] text-white text-xs font-semibold rounded-lg shadow-sm transition-colors whitespace-nowrap"
+              title="Snapshot current live observation to MySQL database"
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>Snapshot to MySQL</span>
+            </button>
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
 import { CitizenComplaint } from '../types';
-import { apiFetch } from './api';
+import { apiFetch, resolveCoordinates } from './api';
 
 export const getComplaints = async (): Promise<CitizenComplaint[]> => {
   const response = await apiFetch('/complaints');
@@ -15,6 +15,7 @@ export const getComplaints = async (): Promise<CitizenComplaint[]> => {
     priority: item.priority || 'Medium',
     status: item.status || 'Submitted',
     createdAt: item.createdAt || item.created_at || new Date().toISOString(),
+    coordinates: item.coordinates || resolveCoordinates(item.location),
     isLive: true,
   }));
 };

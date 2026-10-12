@@ -93,14 +93,21 @@ export const CityMap: React.FC<CityMapProps> = ({
       // Add zoom control top-right
       L.control.zoom({ position: 'topright' }).addTo(map);
 
-      // Add Light-themed CartoDB Voyager tiles
-      const tileLayer = L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-        {
-          maxZoom: 19,
-          subdomains: 'abcd',
-        }
-      );
+      // High-performance, clean, keyless GIS map tile provider (Esri ArcGIS World Street Map)
+      // Supports configurable override via VITE_MAP_TILE_URL or VITE_CARTO_API_KEY
+      const cartoKey = import.meta.env.VITE_CARTO_API_KEY;
+      const customTileUrl = import.meta.env.VITE_MAP_TILE_URL;
+
+      const tileUrl = customTileUrl
+        ? customTileUrl
+        : cartoKey
+          ? `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?api_key=${cartoKey}`
+          : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+
+      const tileLayer = L.tileLayer(tileUrl, {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri, OpenStreetMap',
+      });
 
       tileLayer.addTo(map);
 

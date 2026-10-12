@@ -1,5 +1,5 @@
 import { PollutionRecord, LivePollutionData } from '../types';
-import { apiFetch } from './api';
+import { apiFetch, resolveCoordinates } from './api';
 
 /**
  * Phase 4: Fetches real-time LIVE Air Quality telemetry from Open-Meteo via Spring Boot /api/live/pollution.
@@ -51,7 +51,7 @@ export const fetchPollutionRecords = async (): Promise<{ data: PollutionRecord[]
     dominantPollutant: (item.pm25 > 50 ? 'PM2.5' : 'PM10') as PollutionRecord['dominantPollutant'],
     status: item.status || (item.aqi > 200 ? 'Very Unhealthy' : item.aqi > 150 ? 'Unhealthy' : item.aqi > 100 ? 'Moderate' : 'Good'),
     updatedAt: item.recordedAt || item.recorded_at || new Date().toISOString(),
-    coordinates: item.coordinates || [17.3850, 78.4867],
+    coordinates: item.coordinates || resolveCoordinates(item.location || item.stationName),
     isLive: true,
   }));
 
