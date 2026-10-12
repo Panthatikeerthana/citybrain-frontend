@@ -1,4 +1,5 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const envBase = (import.meta.env.VITE_API_BASE_URL || 'https://citybrain-backend.onrender.com/api').trim();
+export const API_BASE_URL = envBase.replace(/\/+$/, '');
 
 export const TOKEN_STORAGE_KEY = 'citybrain_auth_token';
 
@@ -31,9 +32,10 @@ export const removeStoredToken = (): void => {
  * Automatically injects Authorization Bearer header if token exists in sessionStorage.
  */
 export const apiFetch = async (endpoint: string, options: RequestInit = {}): Promise<Response> => {
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = endpoint.startsWith('http://') || endpoint.startsWith('https://')
     ? endpoint
-    : `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+    : `${API_BASE_URL}${path}`;
 
   const token = getStoredToken();
   const headers = new Headers(options.headers || {});
